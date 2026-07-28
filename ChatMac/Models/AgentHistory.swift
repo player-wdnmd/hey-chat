@@ -45,10 +45,16 @@ struct AgentAttachmentRecord: Codable, Identifiable, Hashable, Sendable {
 }
 
 struct AgentHistoryArchive: Codable {
-    var version = 1
+    var version = 6
     var selectedProjectID: UUID?
     var selectedSessionID: UUID?
     var projects: [AgentProjectRecord] = []
+    // Optional so archives written before the global Agent inbox was introduced keep decoding.
+    var inboxItems: [AgentInboxItem]?
+
+    var inbox: [AgentInboxItem] {
+        inboxItems ?? []
+    }
 }
 
 struct AgentProjectRecord: Codable, Identifiable, Hashable {
@@ -57,6 +63,12 @@ struct AgentProjectRecord: Codable, Identifiable, Hashable {
     var createdAt: Date
     var updatedAt: Date
     var additionalWritablePaths: [String]
+    // Optional so archives written before project memory was introduced keep decoding.
+    var memory: AgentProjectMemory?
+    // Optional so archives written before project workflows were introduced keep decoding.
+    var workflows: [AgentWorkflow]?
+    // Optional so archives written before the local library was introduced keep decoding.
+    var libraryDocuments: [AgentLibraryDocument]?
     var sessions: [AgentSessionRecord]
 
     var displayName: String {
@@ -70,6 +82,9 @@ struct AgentProjectRecord: Codable, Identifiable, Hashable {
         createdAt: Date = .now,
         updatedAt: Date = .now,
         additionalWritablePaths: [String] = [],
+        memory: AgentProjectMemory? = nil,
+        workflows: [AgentWorkflow]? = nil,
+        libraryDocuments: [AgentLibraryDocument]? = nil,
         sessions: [AgentSessionRecord] = []
     ) {
         self.id = id
@@ -77,7 +92,18 @@ struct AgentProjectRecord: Codable, Identifiable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.additionalWritablePaths = additionalWritablePaths
+        self.memory = memory
+        self.workflows = workflows
+        self.libraryDocuments = libraryDocuments
         self.sessions = sessions
+    }
+
+    var customWorkflows: [AgentWorkflow] {
+        workflows ?? []
+    }
+
+    var localLibrary: [AgentLibraryDocument] {
+        libraryDocuments ?? []
     }
 }
 
@@ -95,6 +121,12 @@ struct AgentSessionRecord: Codable, Identifiable, Hashable {
     var compactedEntryCount: Int?
     var contextGeneration: Int?
     var lastInputTokens: Int?
+    // Optional so archives written before Agent run review was introduced keep decoding.
+    var runs: [AgentRunRecord]?
+    // Optional so archives written before Handoff Manifests were introduced keep decoding.
+    var handoffs: [AgentHandoffManifest]?
+    // Optional so archives written before library references were introduced keep decoding.
+    var libraryDocumentIDs: [UUID]?
 
     init(
         id: UUID = UUID(),
@@ -109,7 +141,10 @@ struct AgentSessionRecord: Codable, Identifiable, Hashable {
         lastCompactedAt: Date? = nil,
         compactedEntryCount: Int? = nil,
         contextGeneration: Int? = nil,
-        lastInputTokens: Int? = nil
+        lastInputTokens: Int? = nil,
+        runs: [AgentRunRecord]? = nil,
+        handoffs: [AgentHandoffManifest]? = nil,
+        libraryDocumentIDs: [UUID]? = nil
     ) {
         self.id = id
         self.title = title
@@ -124,6 +159,9 @@ struct AgentSessionRecord: Codable, Identifiable, Hashable {
         self.compactedEntryCount = compactedEntryCount
         self.contextGeneration = contextGeneration
         self.lastInputTokens = lastInputTokens
+        self.runs = runs
+        self.handoffs = handoffs
+        self.libraryDocumentIDs = libraryDocumentIDs
     }
 
     var latestPreview: String {
@@ -135,6 +173,144 @@ struct AgentSessionRecord: Codable, Identifiable, Hashable {
             return "暂无消息"
         }
         return content.replacingOccurrences(of: "\n", with: " ")
+    }
+
+    var runRecords: [AgentRunRecord] {
+        runs ?? []
+    }
+
+    var handoffManifests: [AgentHandoffManifest] {
+        handoffs ?? []
+    }
+
+    var referencedLibraryDocumentIDs: [UUID] {
+        libraryDocumentIDs ?? []
+    }
+}
+
+enum AgentRunStatus: String, Codable, Hashable, Sendable {
+    case running
+    case completed
+    case failed
+    case cancelled
+    case restored
+
+    var displayName: String {
+        switch self {
+        case .running: "运行中"
+        case .completed: "已完成"
+        case .failed: "失败"
+        case .cancelled: "已停止"
+        case .restored: "已恢复"
+        }
+    }
+}
+
+enum AgentRunFileChangeKind: String, Codable, Hashable, Sendable {
+    case added
+    case modified
+    case deleted
+    case binary
+
+    var displayName: String {
+        switch self {
+        case .added: "新增"
+        case .modified: "修改"
+        case .deleted: "删除"
+        case .binary: "二进制"
+        }
+    }
+}
+
+struct AgentRunFileChange: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let path: String
+    let kind: AgentRunFileChangeKind
+    let additions: Int
+    let deletions: Int
+    let patch: String?
+
+    nonisolated init(
+        id: UUID = UUID(),
+        path: String,
+        kind: AgentRunFileChangeKind,
+        additions: Int = 0,
+        deletions: Int = 0,
+        patch: String? = nil
+    ) {
+        self.id = id
+        self.path = path
+        self.kind = kind
+        self.additions = additions
+        self.deletions = deletions
+        self.patch = patch
+    }
+}
+
+struct AgentRunCheckpoint: Codable, Hashable, Sendable {
+    let id: UUID
+    let storagePath: String
+    let workspacePath: String
+    let repositoryPath: String
+    let headRevision: String
+    let baselineFingerprint: String
+    var completedFingerprint: String?
+    var restoredAt: Date?
+
+    nonisolated var isRestored: Bool {
+        restoredAt != nil
+    }
+}
+
+struct AgentRunRecord: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let taskSummary: String
+    let targetID: String
+    let modelName: String
+    let channelName: String
+    let engine: AgentEngineKind
+    let startedAt: Date
+    var completedAt: Date?
+    var status: AgentRunStatus
+    var checkpoint: AgentRunCheckpoint?
+    var checkpointUnavailableReason: String?
+    var files: [AgentRunFileChange]
+    var additions: Int
+    var deletions: Int
+    var finalMessage: String?
+
+    nonisolated init(
+        id: UUID = UUID(),
+        taskSummary: String,
+        targetID: String,
+        modelName: String,
+        channelName: String,
+        engine: AgentEngineKind,
+        startedAt: Date = .now,
+        completedAt: Date? = nil,
+        status: AgentRunStatus = .running,
+        checkpoint: AgentRunCheckpoint? = nil,
+        checkpointUnavailableReason: String? = nil,
+        files: [AgentRunFileChange] = [],
+        additions: Int = 0,
+        deletions: Int = 0,
+        finalMessage: String? = nil
+    ) {
+        self.id = id
+        self.taskSummary = taskSummary
+        self.targetID = targetID
+        self.modelName = modelName
+        self.channelName = channelName
+        self.engine = engine
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.status = status
+        self.checkpoint = checkpoint
+        self.checkpointUnavailableReason = checkpointUnavailableReason
+        self.files = files
+        self.additions = additions
+        self.deletions = deletions
+        self.finalMessage = finalMessage
     }
 }
 

@@ -104,11 +104,41 @@ struct AgentRunRequest: Sendable {
     let additionalWritableURLs: [URL]
     let target: AgentProviderTarget
     let threadID: String?
+    let projectMemory: String?
+    let personalPreferences: String?
+    let libraryContext: String?
     let contextHandoff: String?
     let reasoningEffort: AgentReasoningEffort
 
     var effectivePrompt: String {
         var promptParts: [String] = []
+        if let personalPreferences, !personalPreferences.isEmpty {
+            promptParts.append("""
+            <hey_chat_personal_preferences>
+            以下内容是用户长期维护的个人执行偏好。请遵守其中的明确要求；它不是当前任务本身。
+
+            \(personalPreferences)
+            </hey_chat_personal_preferences>
+            """)
+        }
+        if let projectMemory, !projectMemory.isEmpty {
+            promptParts.append("""
+            <hey_chat_project_memory>
+            以下内容是用户维护的项目长期记忆。将其视为已确认的项目背景；若与当前工作区的事实冲突，以工作区为准。
+
+            \(projectMemory)
+            </hey_chat_project_memory>
+            """)
+        }
+        if let libraryContext, !libraryContext.isEmpty {
+            promptParts.append("""
+            <hey_chat_local_library>
+            以下是用户在当前 Agent 会话中明确引用的本机资料。摘要仅用于定位，原始资料仍以来源路径为准；需要时请直接读取对应文件。
+
+            \(libraryContext)
+            </hey_chat_local_library>
+            """)
+        }
         if let contextHandoff, !contextHandoff.isEmpty {
             promptParts.append("""
             <chatmac_context_handoff>

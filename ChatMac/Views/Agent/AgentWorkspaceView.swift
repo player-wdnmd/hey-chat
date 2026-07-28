@@ -7,6 +7,14 @@ struct AgentWorkspaceView: View {
     let models: [AIModelConfiguration]
     @ObservedObject var viewModel: AgentWorkspaceViewModel
     @State private var isAttachmentDropTarget = false
+    @State private var isRunReviewPresented = false
+    @State private var isMemoryEditorPresented = false
+    @State private var isLibraryPresented = false
+    @State private var isInboxPresented = false
+    @State private var isMaintenancePresented = false
+    @State private var isContextInspectorPresented = false
+    @State private var isWorkflowManagerPresented = false
+    @State private var workflowAwaitingInput: AgentWorkflow?
 
     private var targets: [AgentProviderTarget] {
         configuredTargets
@@ -86,6 +94,60 @@ struct AgentWorkspaceView: View {
         } message: {
             Text(viewModel.cliInstallationError ?? "安装命令执行失败。")
         }
+        .alert(
+            "运行记录操作失败",
+            isPresented: Binding(
+                get: { viewModel.runReviewError != nil },
+                set: { isPresented in
+                    if !isPresented { viewModel.dismissRunReviewError() }
+                }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                viewModel.dismissRunReviewError()
+            }
+        } message: {
+            Text(viewModel.runReviewError ?? "无法完成运行记录操作。")
+        }
+        .alert(
+            "Agent 维护操作失败",
+            isPresented: Binding(
+                get: { viewModel.maintenanceError != nil },
+                set: { isPresented in
+                    if !isPresented { viewModel.dismissMaintenanceError() }
+                }
+            )
+        ) {
+            Button("好", role: .cancel) { viewModel.dismissMaintenanceError() }
+        } message: {
+            Text(viewModel.maintenanceError ?? "无法完成维护操作。")
+        }
+        .sheet(isPresented: $isRunReviewPresented) {
+            AgentRunReviewSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isMemoryEditorPresented) {
+            AgentMemoryEditorSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isLibraryPresented) {
+            AgentLibrarySheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isInboxPresented) {
+            AgentInboxSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isMaintenancePresented) {
+            AgentMaintenanceSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isContextInspectorPresented) {
+            AgentContextInspectorSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isWorkflowManagerPresented) {
+            AgentWorkflowManagerSheet(viewModel: viewModel)
+        }
+        .sheet(item: $workflowAwaitingInput) { workflow in
+            AgentWorkflowInputSheet(workflow: workflow) { input in
+                runWorkflow(workflow, input: input)
+            }
+        }
     }
 
     private var header: some View {
@@ -116,6 +178,115 @@ struct AgentWorkspaceView: View {
                 .disabled(viewModel.installingCLI != nil || viewModel.isRunning)
                 .help(viewModel.cliActionHelp(for: selectedTarget.engine))
             }
+
+            if viewModel.latestRun != nil {
+                Button {
+                    isRunReviewPresented = true
+                } label: {
+                    Label("审查", systemImage: "checklist")
+                        .lineLimit(1)
+                }
+                .buttonStyle(AeroHeaderButtonStyle())
+                .disabled(viewModel.isRunning)
+                .help("查看本次 Agent 任务的文件变更与检查点")
+            }
+
+            Button {
+                isMemoryEditorPresented = true
+            } label: {
+                Label("记忆", systemImage: "book.closed")
+                    .lineLimit(1)
+            }
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.isRunning || viewModel.workspaceURL == nil)
+            .help("编辑项目长期记忆与个人执行偏好")
+
+            Button {
+                isLibraryPresented = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "books.vertical")
+                    Text("资料")
+                    if !viewModel.referencedLibraryDocuments.isEmpty {
+                        Text("\(viewModel.referencedLibraryDocuments.count)")
+                    }
+                }
+                .lineLimit(1)
+            }
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.isRunning || viewModel.workspaceURL == nil)
+            .help("管理项目资料库并引用到当前 Agent 会话")
+
+            Button {
+                isInboxPresented = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "tray.full")
+                    Text("收件箱")
+                    if !viewModel.openInboxItems.isEmpty {
+                        Text("\(viewModel.openInboxItems.count)")
+                    }
+                }
+                .lineLimit(1)
+            }
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.isRunning)
+            .help("记录临时任务并在之后分配给 Agent 项目")
+
+            Button {
+                isMaintenancePresented = true
+            } label: {
+                Label("维护", systemImage: "shield.lefthalf.filled")
+                    .lineLimit(1)
+            }
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.isRunning || viewModel.isMaintaining)
+            .help("检查 Agent 本地数据状态，导出或恢复备份")
+
+            Button {
+                isContextInspectorPresented = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "text.book.closed")
+                    Text("上下文")
+                    if !viewModel.contextManifests.isEmpty {
+                        Text("\(viewModel.contextManifests.count)")
+                    }
+                }
+                .lineLimit(1)
+            }
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.workspaceURL == nil)
+            .help("查看 Agent 上下文交接记录")
+
+            Menu {
+                Section("常用") {
+                    ForEach(viewModel.builtInWorkflows) { workflow in
+                        workflowMenuButton(workflow)
+                    }
+                }
+                if !viewModel.customWorkflows.isEmpty {
+                    Section("本项目") {
+                        ForEach(viewModel.customWorkflows) { workflow in
+                            workflowMenuButton(workflow)
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    isWorkflowManagerPresented = true
+                } label: {
+                    Label("管理快捷工作流", systemImage: "slider.horizontal.3")
+                }
+            } label: {
+                Label("快捷", systemImage: "bolt.fill")
+                    .lineLimit(1)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .buttonStyle(AeroHeaderButtonStyle())
+            .disabled(viewModel.isRunning || viewModel.workspaceURL == nil)
+            .help("运行或管理 Agent 快捷工作流")
 
             Menu {
                 if configuredTargets.isEmpty {
@@ -488,6 +659,1590 @@ struct AgentWorkspaceView: View {
         viewModel.draft = ""
         viewModel.send(prompt, target: selectedTarget)
     }
+
+    private func workflowMenuButton(_ workflow: AgentWorkflow) -> some View {
+        Button {
+            if workflow.requiresInput {
+                workflowAwaitingInput = workflow
+            } else {
+                runWorkflow(workflow)
+            }
+        } label: {
+            Label(workflow.title, systemImage: workflow.iconName)
+        }
+        .disabled(selectedTarget == nil)
+    }
+
+    private func runWorkflow(_ workflow: AgentWorkflow, input: String = "") {
+        guard let selectedTarget else { return }
+        let prompt = workflow.renderedPrompt(input: input)
+        guard !prompt.isEmpty else { return }
+        viewModel.draft = ""
+        viewModel.send(prompt, target: selectedTarget)
+    }
+}
+
+private struct AgentWorkflowInputSheet: View {
+    let workflow: AgentWorkflow
+    let onRun: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var input = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Label(workflow.title, systemImage: workflow.iconName)
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(AeroHeaderButtonStyle())
+                .help("取消")
+            }
+
+            TextEditor(text: $input)
+                .font(.system(size: 13.5))
+                .foregroundStyle(AeroTheme.text)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 120)
+                .padding(9)
+                .background(Color.white.opacity(0.75))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(AeroTheme.deepSky.opacity(0.22), lineWidth: 1)
+                }
+
+            HStack {
+                Spacer()
+                Button("运行") {
+                    onRun(input)
+                    dismiss()
+                }
+                .buttonStyle(AeroPrimaryButtonStyle())
+                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 500)
+        .background(AeroTheme.mainBackground)
+    }
+}
+
+private struct AgentLibrarySheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+    @State private var selectedDocumentID: UUID?
+    @State private var documentPendingDelete: AgentLibraryDocument?
+
+    private var documents: [AgentLibraryDocument] {
+        viewModel.libraryDocuments.filter { $0.matches(searchText) }
+    }
+
+    private var selectedDocument: AgentLibraryDocument? {
+        if let selectedDocumentID,
+           let document = documents.first(where: { $0.id == selectedDocumentID }) {
+            return document
+        }
+        return documents.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider().opacity(0.32)
+            HStack(spacing: 0) {
+                documentList
+                Divider().opacity(0.32)
+                documentDetail
+            }
+        }
+        .frame(width: 980, height: 650)
+        .background(AeroTheme.mainBackground)
+        .task {
+            selectedDocumentID = viewModel.libraryDocuments.first?.id
+        }
+        .alert("移除这份资料？", isPresented: Binding(
+            get: { documentPendingDelete != nil },
+            set: { if !$0 { documentPendingDelete = nil } }
+        )) {
+            Button("取消", role: .cancel) { documentPendingDelete = nil }
+            Button("移除", role: .destructive) {
+                guard let document = documentPendingDelete else { return }
+                viewModel.removeLibraryDocument(document.id)
+                documentPendingDelete = nil
+                selectedDocumentID = viewModel.libraryDocuments.first?.id
+            }
+        } message: {
+            Text("仅移除 hey chat 的索引和引用，不会删除原始文件。")
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("本地资料库")
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+                Text("\(viewModel.workspaceURL?.lastPathComponent ?? "项目") · 原文件不复制")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(AeroTheme.secondaryText)
+            }
+            Spacer()
+            Button(action: chooseSources) {
+                Label("添加资料", systemImage: "plus")
+            }
+            .buttonStyle(AeroPrimaryButtonStyle())
+            Button("完成") { dismiss() }
+                .buttonStyle(AeroHeaderButtonStyle())
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 16)
+        .background(AeroTheme.glassGradient)
+    }
+
+    private var documentList: some View {
+        VStack(spacing: 0) {
+            TextField("搜索已索引内容", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .padding(12)
+
+            if documents.isEmpty {
+                VStack(spacing: 9) {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 25, weight: .light))
+                        .foregroundStyle(AeroTheme.deepSky.opacity(0.72))
+                    Text(viewModel.libraryDocuments.isEmpty ? "尚未添加资料" : "没有匹配的资料")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(selection: $selectedDocumentID) {
+                    ForEach(documents) { document in
+                        Button {
+                            selectedDocumentID = document.id
+                        } label: {
+                            HStack(spacing: 9) {
+                                Image(systemName: document.isDirectory ? "folder.fill" : "doc.text.fill")
+                                    .foregroundStyle(document.isAvailable ? AeroTheme.deepSky : AeroTheme.faintText)
+                                    .frame(width: 18)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(document.displayName)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(AeroTheme.text)
+                                        .lineLimit(1)
+                                    Text(document.isDirectory ? "\(document.indexedFileCount) 个已索引文件" : document.kindDisplayName)
+                                        .font(.system(size: 9.5, weight: .medium))
+                                        .foregroundStyle(AeroTheme.faintText)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 4)
+                                if viewModel.referencedLibraryDocuments.contains(where: { $0.id == document.id }) {
+                                    Image(systemName: "link.circle.fill")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(AeroTheme.deepLeaf)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .tag(document.id)
+                    }
+                }
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .frame(width: 310)
+        .background(Color.white.opacity(0.43))
+    }
+
+    @ViewBuilder
+    private var documentDetail: some View {
+        if let document = selectedDocument {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(document.displayName, systemImage: document.isDirectory ? "folder.fill" : "doc.text.fill")
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundStyle(AeroTheme.text)
+                            Text(document.path)
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(AeroTheme.faintText)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
+                        Spacer()
+                        Toggle("引用", isOn: Binding(
+                            get: { viewModel.referencedLibraryDocuments.contains(where: { $0.id == document.id }) },
+                            set: { viewModel.setLibraryDocumentReferenced(document.id, isReferenced: $0) }
+                        ))
+                        .toggleStyle(.switch)
+                        .font(.system(size: 11.5, weight: .bold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                    }
+                    HStack(spacing: 14) {
+                        metric("类型", document.kindDisplayName)
+                        metric("索引", document.indexedAt.formatted(date: .abbreviated, time: .shortened))
+                        metric("文本", "\(document.indexedText.count.formatted()) 字符")
+                        if document.isDirectory { metric("文件", "\(document.indexedFileCount)") }
+                        if !document.isAvailable { metric("状态", "原文件不可用") }
+                    }
+                    HStack {
+                        Button {
+                            viewModel.refreshLibraryDocument(document.id)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                        .disabled(!document.isAvailable)
+                        .help("重新建立本地索引")
+                        Button(role: .destructive) {
+                            documentPendingDelete = document
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                        .help("移除资料引用")
+                        Spacer()
+                        Text("引用后会随下一次 Agent 请求传递来源和匹配摘录")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(AeroTheme.faintText)
+                    }
+                }
+                .padding(20)
+                .background(Color.white.opacity(0.55))
+                Divider().opacity(0.26)
+                ScrollView([.vertical, .horizontal]) {
+                    Text(document.contextExcerpt(matching: searchText, maximumCharacters: 18_000))
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(AeroTheme.text)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(18)
+                }
+                .background(Color(red: 240 / 255, green: 250 / 255, blue: 253 / 255))
+            }
+        } else {
+            VStack(spacing: 10) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(AeroTheme.deepSky.opacity(0.72))
+                Text("选择资料后可查看索引和引用状态")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(AeroTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func metric(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 9.5, weight: .heavy))
+                .foregroundStyle(AeroTheme.faintText)
+            Text(value)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(AeroTheme.secondaryText)
+                .lineLimit(1)
+        }
+    }
+
+    private func chooseSources() {
+        let panel = NSOpenPanel()
+        panel.title = "添加本地资料"
+        panel.prompt = "添加"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.resolvesAliases = true
+        panel.directoryURL = viewModel.workspaceURL
+        guard panel.runModal() == .OK else { return }
+        viewModel.addLibrarySources(panel.urls)
+    }
+}
+
+private struct AgentInboxSheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedItemID: UUID?
+    @State private var title = ""
+    @State private var detail = ""
+
+    private var selectedItem: AgentInboxItem? {
+        if let selectedItemID,
+           let item = viewModel.sortedInboxItems.first(where: { $0.id == selectedItemID }) { return item }
+        return viewModel.sortedInboxItems.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("任务收件箱")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text("全局本机待办 · 可稍后归入项目")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("完成") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+            Divider().opacity(0.32)
+            HStack(spacing: 0) {
+                inboxList
+                Divider().opacity(0.32)
+                inboxDetail
+            }
+        }
+        .frame(width: 900, height: 620)
+        .background(AeroTheme.mainBackground)
+        .task { selectedItemID = viewModel.sortedInboxItems.first?.id }
+    }
+
+    private var inboxList: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("待办")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                Spacer()
+                Button(action: newItem) {
+                    Image(systemName: "plus")
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(AeroHeaderButtonStyle())
+                .help("新建收件箱任务")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            Divider().opacity(0.25)
+            List(selection: $selectedItemID) {
+                ForEach(viewModel.sortedInboxItems) { item in
+                    Button {
+                        load(item)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: item.status == .completed ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(item.status == .completed ? AeroTheme.deepLeaf : AeroTheme.deepSky)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(AeroTheme.text)
+                                    .lineLimit(1)
+                                Text(viewModel.projectDisplayName(for: item.projectID) ?? "未分配项目")
+                                    .font(.system(size: 9.5, weight: .medium))
+                                    .foregroundStyle(AeroTheme.faintText)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .tag(item.id)
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+        }
+        .frame(width: 300)
+        .background(Color.white.opacity(0.43))
+    }
+
+    private var inboxDetail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 15) {
+                TextField("任务标题", text: $title)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .semibold))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.74))
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1) }
+                Text("补充说明")
+                    .font(.system(size: 10.5, weight: .heavy))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                TextEditor(text: $detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AeroTheme.text)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 180)
+                    .padding(9)
+                    .background(Color.white.opacity(0.74))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1) }
+
+                HStack {
+                    Text("归属项目")
+                        .font(.system(size: 10.5, weight: .heavy))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                    Spacer()
+                    Menu(viewModel.projectDisplayName(for: selectedItem?.projectID) ?? "未分配") {
+                        Button("未分配") { assignSelected(to: nil) }
+                        Divider()
+                        ForEach(viewModel.sortedProjects) { project in
+                            Button(project.displayName) { assignSelected(to: project.id) }
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .buttonStyle(AeroHeaderButtonStyle())
+                }
+
+                HStack {
+                    if let item = selectedItem {
+                        Button {
+                            viewModel.toggleInboxItem(item.id)
+                        } label: {
+                            Label(item.status == .completed ? "标为待处理" : "标为完成", systemImage: item.status == .completed ? "arrow.uturn.backward" : "checkmark")
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                        Button(role: .destructive) {
+                            viewModel.deleteInboxItem(item.id)
+                            newItem()
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                        .help("删除任务")
+                    }
+                    Spacer()
+                    if let item = selectedItem {
+                        Button("交给 Agent") {
+                            viewModel.saveInboxItem(itemWithCurrentText(item))
+                            viewModel.prepareInboxItem(item.id)
+                            dismiss()
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                    }
+                    Button("保存") { save() }
+                        .buttonStyle(AeroPrimaryButtonStyle())
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(22)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func newItem() {
+        selectedItemID = nil
+        title = ""
+        detail = ""
+    }
+
+    private func load(_ item: AgentInboxItem) {
+        selectedItemID = item.id
+        title = item.title
+        detail = item.detail
+    }
+
+    private func itemWithCurrentText(_ item: AgentInboxItem) -> AgentInboxItem {
+        var updated = item
+        updated.title = title
+        updated.detail = detail
+        return updated
+    }
+
+    private func save() {
+        let item = itemWithCurrentText(selectedItem ?? AgentInboxItem(title: title, detail: detail))
+        viewModel.saveInboxItem(item)
+        selectedItemID = item.id
+    }
+
+    private func assignSelected(to projectID: UUID?) {
+        guard let item = selectedItem else { return }
+        viewModel.saveInboxItem(itemWithCurrentText(item))
+        viewModel.assignInboxItem(item.id, to: projectID)
+    }
+}
+
+private struct AgentMaintenanceSheet: View {
+    private enum Tab: Hashable {
+        case health
+        case backup
+    }
+
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var tab: Tab = .health
+    @State private var restoreConfirmationPresented = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Agent 维护")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text("本机健康检查、备份与恢复")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("完成") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+            Divider().opacity(0.32)
+
+            Picker("维护页面", selection: $tab) {
+                Text("健康").tag(Tab.health)
+                Text("备份").tag(Tab.backup)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+
+            Group {
+                switch tab {
+                case .health: health
+                case .backup: backup
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 720, height: 560)
+        .background(AeroTheme.mainBackground)
+        .alert("恢复这份 Agent 备份？", isPresented: $restoreConfirmationPresented) {
+            Button("取消", role: .cancel) { viewModel.cancelPendingBackupRestore() }
+            Button("恢复", role: .destructive) {
+                viewModel.confirmPendingBackupRestore()
+            }
+        } message: {
+            Text("恢复前会自动创建当前 Agent 数据的保护备份。API Key 不会包含在导入或导出的内容中。\n\n\(viewModel.pendingBackupRestoreSummary ?? "")")
+        }
+    }
+
+    private var health: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 11) {
+                Text("本机状态")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                ForEach(viewModel.healthChecks) { check in
+                    HStack(alignment: .top, spacing: 11) {
+                        Image(systemName: check.severity.systemImage)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(healthColor(check.severity))
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(check.title)
+                                .font(.system(size: 12.5, weight: .bold))
+                                .foregroundStyle(AeroTheme.text)
+                            Text(check.detail)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(AeroTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(13)
+                    .background(Color.white.opacity(0.58))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(healthColor(check.severity).opacity(0.15), lineWidth: 1)
+                    }
+                }
+            }
+            .padding(22)
+        }
+    }
+
+    private var backup: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("导出 Agent 备份", systemImage: "square.and.arrow.up")
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+                Text("导出 Agent 项目、会话、运行记录、记忆、资料索引、快捷工作流、Inbox 和个人执行偏好。原始资料文件及 API Key 均不会写入备份。")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("导出备份") { viewModel.exportBackup() }
+                        .buttonStyle(AeroPrimaryButtonStyle())
+                    if let url = viewModel.lastBackupURL {
+                        Text(url.lastPathComponent)
+                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AeroTheme.faintText)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .padding(17)
+            .background(Color.white.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("恢复 Agent 备份", systemImage: "arrow.counterclockwise")
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+                Text("选择此前导出的 `.heychat-agent-backup` 文件。确认恢复时，当前数据会先保存一份自动保护备份。")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("选择并恢复备份") {
+                    if viewModel.chooseBackupForRestore() {
+                        restoreConfirmationPresented = true
+                    }
+                }
+                .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(17)
+            .background(Color.white.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            Spacer()
+        }
+        .padding(22)
+    }
+
+    private func healthColor(_ severity: AgentHealthSeverity) -> Color {
+        switch severity {
+        case .healthy: AeroTheme.deepLeaf
+        case .notice: AeroTheme.deepSky
+        case .warning: Color.orange
+        }
+    }
+}
+
+private struct AgentWorkflowManagerSheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var editingID: UUID?
+    @State private var title = ""
+    @State private var iconName = "bolt.fill"
+    @State private var promptTemplate = ""
+    @State private var requiresInput = false
+    @State private var workflowPendingDelete: AgentWorkflow?
+
+    private let icons = [
+        "bolt.fill",
+        "terminal",
+        "hammer.fill",
+        "stethoscope",
+        "wrench.and.screwdriver.fill",
+        "text.append",
+        "folder.badge.gearshape",
+        "checkmark.seal.fill",
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("快捷工作流")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text(viewModel.workspaceURL?.lastPathComponent ?? "项目")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("完成") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+
+            Divider().opacity(0.34)
+
+            HStack(spacing: 0) {
+                workflowList
+                Divider().opacity(0.34)
+                editor
+            }
+        }
+        .frame(width: 920, height: 620)
+        .background(AeroTheme.mainBackground)
+        .task {
+            if editingID == nil, let first = viewModel.customWorkflows.first {
+                load(first)
+            } else if editingID == nil {
+                newWorkflow()
+            }
+        }
+        .alert("删除此快捷工作流？", isPresented: Binding(
+            get: { workflowPendingDelete != nil },
+            set: { isPresented in
+                if !isPresented { workflowPendingDelete = nil }
+            }
+        )) {
+            Button("取消", role: .cancel) { workflowPendingDelete = nil }
+            Button("删除", role: .destructive) {
+                guard let workflow = workflowPendingDelete else { return }
+                viewModel.deleteWorkflow(workflow.id)
+                workflowPendingDelete = nil
+                newWorkflow()
+            }
+        } message: {
+            Text("删除后该项目将不再显示此快捷工作流。")
+        }
+    }
+
+    private var workflowList: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("本项目")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                Spacer()
+                Button(action: newWorkflow) {
+                    Image(systemName: "plus")
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(AeroHeaderButtonStyle())
+                .help("新增快捷工作流")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            Divider().opacity(0.25)
+
+            List(selection: $editingID) {
+                ForEach(viewModel.customWorkflows) { workflow in
+                    Button {
+                        load(workflow)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: workflow.iconName)
+                                .foregroundStyle(AeroTheme.deepSky)
+                            Text(workflow.title)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundStyle(AeroTheme.text)
+                                .lineLimit(1)
+                            Spacer()
+                            if workflow.requiresInput {
+                                Image(systemName: "text.cursor")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(AeroTheme.faintText)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .tag(workflow.id)
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+        }
+        .frame(width: 260)
+        .background(Color.white.opacity(0.42))
+    }
+
+    private var editor: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(spacing: 10) {
+                    Menu {
+                        ForEach(icons, id: \.self) { icon in
+                            Button {
+                                iconName = icon
+                            } label: {
+                                Label(icon, systemImage: icon)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: iconName)
+                            .font(.system(size: 18, weight: .bold))
+                            .frame(width: 42, height: 38)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .buttonStyle(AeroHeaderButtonStyle())
+                    .help("选择图标")
+
+                    TextField("工作流名称", text: $title)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AeroTheme.text)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.74))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1)
+                        }
+                }
+
+                Toggle("运行前补充描述", isOn: $requiresInput)
+                    .toggleStyle(.switch)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AeroTheme.secondaryText)
+
+                Text("任务模板")
+                    .font(.system(size: 10.5, weight: .heavy))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                TextEditor(text: $promptTemplate)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AeroTheme.text)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 280)
+                    .padding(9)
+                    .background(Color.white.opacity(0.74))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1)
+                    }
+
+                HStack {
+                    if editingID != nil {
+                        Button(role: .destructive) {
+                            workflowPendingDelete = selectedWorkflow
+                        } label: {
+                            Image(systemName: "trash")
+                                .frame(width: 18, height: 18)
+                        }
+                        .buttonStyle(AeroHeaderButtonStyle())
+                        .help("删除此快捷工作流")
+                    }
+                    Spacer()
+                    Button("保存") {
+                        saveWorkflow()
+                    }
+                    .buttonStyle(AeroPrimaryButtonStyle())
+                    .disabled(
+                        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || promptTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                }
+            }
+            .padding(22)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var selectedWorkflow: AgentWorkflow? {
+        guard let editingID else { return nil }
+        return viewModel.customWorkflows.first(where: { $0.id == editingID })
+    }
+
+    private func newWorkflow() {
+        editingID = nil
+        title = ""
+        iconName = "bolt.fill"
+        promptTemplate = ""
+        requiresInput = false
+    }
+
+    private func load(_ workflow: AgentWorkflow) {
+        editingID = workflow.id
+        title = workflow.title
+        iconName = workflow.iconName
+        promptTemplate = workflow.promptTemplate
+        requiresInput = workflow.requiresInput
+    }
+
+    private func saveWorkflow() {
+        let workflow = AgentWorkflow(
+            id: editingID ?? UUID(),
+            title: title,
+            iconName: iconName,
+            promptTemplate: promptTemplate,
+            requiresInput: requiresInput
+        )
+        viewModel.saveWorkflow(workflow)
+        load(workflow)
+    }
+}
+
+private struct AgentContextInspectorSheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedManifestID: UUID?
+
+    private var manifests: [AgentHandoffManifest] {
+        viewModel.contextManifests
+    }
+
+    private var selectedManifest: AgentHandoffManifest? {
+        if let selectedManifestID,
+           let manifest = manifests.first(where: { $0.id == selectedManifestID }) {
+            return manifest
+        }
+        return manifests.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("上下文交接")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text(contextStatusText)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("完成") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+
+            Divider().opacity(0.35)
+
+            if manifests.isEmpty {
+                emptyState
+            } else {
+                HStack(spacing: 0) {
+                    manifestList
+                    Divider().opacity(0.35)
+                    manifestDetail
+                }
+            }
+        }
+        .frame(width: 1_020, height: 680)
+        .background(AeroTheme.mainBackground)
+        .task {
+            selectedManifestID = selectedManifestID ?? manifests.first?.id
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "text.book.closed")
+                .font(.system(size: 34, weight: .medium))
+                .foregroundStyle(AeroTheme.deepSky)
+            Text("当前会话尚未生成交接记录")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(AeroTheme.text)
+            if viewModel.currentContextSummary != nil {
+                Text("已恢复的旧会话会在下一次模型切换、上下文压缩或 CLI 恢复时生成 Manifest。")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var manifestList: some View {
+        List(selection: $selectedManifestID) {
+            ForEach(manifests) { manifest in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: manifest.kind.systemImage)
+                            .foregroundStyle(kindColor(manifest.kind))
+                        Text(manifest.kind.displayName)
+                            .font(.system(size: 10.5, weight: .heavy))
+                            .foregroundStyle(kindColor(manifest.kind))
+                        Spacer()
+                        deliveryBadge(manifest)
+                    }
+                    Text(manifest.reason)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.text)
+                        .lineLimit(2)
+                    HStack(spacing: 5) {
+                        Text("第 \(manifest.generation) 代")
+                        Text("·")
+                        Text("\(manifest.estimatedTokens.formatted()) tokens")
+                    }
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.faintText)
+                }
+                .padding(.vertical, 5)
+                .tag(manifest.id)
+            }
+        }
+        .listStyle(.sidebar)
+        .frame(width: 292)
+        .scrollContentBackground(.hidden)
+        .background(Color.white.opacity(0.48))
+    }
+
+    @ViewBuilder
+    private var manifestDetail: some View {
+        if let manifest = selectedManifest {
+            VStack(alignment: .leading, spacing: 0) {
+                manifestSummary(manifest)
+                Divider().opacity(0.3)
+                HStack {
+                    Text("Manifest 正文")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                    Spacer()
+                    Text("v\(manifest.schemaVersion)")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(AeroTheme.faintText)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                Divider().opacity(0.22)
+                ScrollView([.vertical, .horizontal]) {
+                    Text(manifest.content)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(AeroTheme.text)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(16)
+                }
+                .background(Color(red: 239 / 255, green: 249 / 255, blue: 252 / 255))
+            }
+        } else {
+            Color.clear
+        }
+    }
+
+    private func manifestSummary(_ manifest: AgentHandoffManifest) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(manifest.kind.displayName, systemImage: manifest.kind.systemImage)
+                        .font(.system(size: 14, weight: .heavy))
+                        .foregroundStyle(kindColor(manifest.kind))
+                    Text(manifest.reason)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.text)
+                        .lineLimit(2)
+                }
+                Spacer()
+                deliveryStatus(manifest)
+            }
+
+            HStack(spacing: 14) {
+                metric("代次", value: "\(manifest.generation)")
+                metric("来源", value: "\(manifest.sourceEntryCount) 条")
+                metric("估算", value: "\(manifest.estimatedTokens.formatted()) tokens")
+                if let model = manifest.destinationModelName {
+                    metric("目标", value: model)
+                }
+            }
+
+            HStack(spacing: 9) {
+                Text("生成于 \(manifest.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                if let deliveredAt = manifest.deliveredAt {
+                    Text("已传递于 \(deliveredAt.formatted(date: .omitted, time: .shortened))")
+                }
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(AeroTheme.faintText)
+        }
+        .padding(18)
+        .background(Color.white.opacity(0.57))
+    }
+
+    private func metric(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 9.5, weight: .heavy))
+                .foregroundStyle(AeroTheme.faintText)
+            Text(value)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AeroTheme.secondaryText)
+                .lineLimit(1)
+        }
+    }
+
+    private func deliveryBadge(_ manifest: AgentHandoffManifest) -> some View {
+        Image(systemName: manifest.isDelivered ? "checkmark.circle.fill" : "clock.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(manifest.isDelivered ? AeroTheme.deepLeaf : AeroTheme.deepSky)
+    }
+
+    private func deliveryStatus(_ manifest: AgentHandoffManifest) -> some View {
+        Label(
+            manifest.isDelivered ? "已传递" : "待传递",
+            systemImage: manifest.isDelivered ? "checkmark.circle.fill" : "clock.fill"
+        )
+        .font(.system(size: 10.5, weight: .heavy))
+        .foregroundStyle(manifest.isDelivered ? AeroTheme.deepLeaf : AeroTheme.deepSky)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background((manifest.isDelivered ? AeroTheme.deepLeaf : AeroTheme.deepSky).opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private func kindColor(_ kind: AgentHandoffKind) -> Color {
+        switch kind {
+        case .compaction: AeroTheme.deepSky
+        case .modelSwitch: AeroTheme.deepLeaf
+        case .recovery: AeroTheme.secondaryText
+        }
+    }
+
+    private var contextStatusText: String {
+        if viewModel.isContextHandoffPending { return "当前交接待新 Agent 线程接收" }
+        if manifests.isEmpty { return "会话可见历史保持完整" }
+        return "已保留 \(manifests.count) 份版本化交接记录"
+    }
+}
+
+private struct AgentMemoryEditorSheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var projectMemory: AgentProjectMemory
+    @State private var personalPreferences: AgentPersonalPreferences
+
+    init(viewModel: AgentWorkspaceViewModel) {
+        self.viewModel = viewModel
+        _projectMemory = State(initialValue: viewModel.projectMemory)
+        _personalPreferences = State(initialValue: viewModel.personalPreferences)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Agent 记忆")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text("\(viewModel.workspaceURL?.lastPathComponent ?? "项目") · 本机保存")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("取消") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+                Button("保存") {
+                    viewModel.saveMemory(
+                        projectMemory: projectMemory,
+                        personalPreferences: personalPreferences
+                    )
+                    dismiss()
+                }
+                .buttonStyle(AeroPrimaryButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    memorySection(
+                        title: "项目长期记忆",
+                        isEnabled: $projectMemory.isEnabled
+                    ) {
+                        memoryTextField("项目目标", text: $projectMemory.projectGoal)
+                        memoryEditor("技术栈与架构", text: $projectMemory.technicalContext, minimumHeight: 76)
+                        memoryEditor("常用命令", text: $projectMemory.commonCommands, minimumHeight: 64)
+                        memoryEditor("代码规范", text: $projectMemory.conventions, minimumHeight: 76)
+                        memoryEditor("约束与注意事项", text: $projectMemory.constraints, minimumHeight: 76)
+                        memoryEditor("已知问题与后续事项", text: $projectMemory.knownIssues, minimumHeight: 76)
+                    }
+
+                    memorySection(
+                        title: "个人执行偏好",
+                        isEnabled: $personalPreferences.isEnabled
+                    ) {
+                        memoryEditor("个人偏好", text: $personalPreferences.content, minimumHeight: 132)
+                    }
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(AeroTheme.mainBackground)
+        }
+        .frame(width: 760, height: 720)
+    }
+
+    private func memorySection<Content: View>(
+        title: String,
+        isEnabled: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+                Spacer()
+                Toggle("启用", isOn: isEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+                    .help("在后续 Agent 请求中使用此记忆")
+            }
+            content()
+                .opacity(isEnabled.wrappedValue ? 1 : 0.5)
+                .disabled(!isEnabled.wrappedValue)
+        }
+        .padding(18)
+        .aeroGlass(cornerRadius: 14)
+    }
+
+    private func memoryTextField(_ title: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10.5, weight: .heavy))
+                .foregroundStyle(AeroTheme.secondaryText)
+            TextField(title, text: text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13.5))
+                .foregroundStyle(AeroTheme.text)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .background(Color.white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1)
+                }
+        }
+    }
+
+    private func memoryEditor(
+        _ title: String,
+        text: Binding<String>,
+        minimumHeight: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10.5, weight: .heavy))
+                .foregroundStyle(AeroTheme.secondaryText)
+            TextEditor(text: text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(AeroTheme.text)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: minimumHeight)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(AeroTheme.deepSky.opacity(0.18), lineWidth: 1)
+                }
+        }
+    }
+}
+
+private struct AgentRunReviewSheet: View {
+    @ObservedObject var viewModel: AgentWorkspaceViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedRunID: UUID?
+    @State private var selectedFileID: UUID?
+    @State private var isRestoreConfirmationPresented = false
+
+    private var runs: [AgentRunRecord] { viewModel.runRecords }
+
+    private var selectedRun: AgentRunRecord? {
+        if let selectedRunID, let run = runs.first(where: { $0.id == selectedRunID }) { return run }
+        return runs.first
+    }
+
+    private var selectedFile: AgentRunFileChange? {
+        guard let selectedRun else { return nil }
+        if let selectedFileID, let file = selectedRun.files.first(where: { $0.id == selectedFileID }) {
+            return file
+        }
+        return selectedRun.files.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("任务审查")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundStyle(AeroTheme.text)
+                    Text("本轮 Agent 的变更、模型来源和可恢复检查点")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer()
+                Button("完成") { dismiss() }
+                    .buttonStyle(AeroHeaderButtonStyle())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+            .background(AeroTheme.glassGradient)
+
+            Divider().opacity(0.35)
+
+            if runs.isEmpty {
+                ContentUnavailableView(
+                    "暂无 Agent 运行记录",
+                    systemImage: "checklist",
+                    description: Text("完成一次 Agent 任务后，可在这里审查文件变更。")
+                )
+            } else {
+                HStack(spacing: 0) {
+                    runList
+                    Divider().opacity(0.35)
+                    detailPane
+                }
+            }
+        }
+        .frame(width: 1_040, height: 680)
+        .background(AeroTheme.mainBackground)
+        .task {
+            selectedRunID = selectedRunID ?? runs.first?.id
+            selectedFileID = selectedFileID ?? selectedRun?.files.first?.id
+        }
+        .onChange(of: selectedRunID) { _, _ in
+            selectedFileID = selectedRun?.files.first?.id
+        }
+        .alert("恢复本次 Agent 修改？", isPresented: $isRestoreConfirmationPresented) {
+            Button("取消", role: .cancel) {}
+            Button("恢复", role: .destructive) {
+                if let run = selectedRun { viewModel.restoreRun(run.id) }
+            }
+        } message: {
+            Text("将恢复到本次 Agent 运行开始前的状态。任务结束后的额外人工修改会阻止恢复，不会被静默覆盖。")
+        }
+    }
+
+    private var runList: some View {
+        List(selection: $selectedRunID) {
+            ForEach(runs) { run in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: statusIcon(run.status))
+                            .foregroundStyle(statusColor(run.status))
+                        Text(run.status.displayName)
+                            .font(.system(size: 10.5, weight: .heavy))
+                            .foregroundStyle(statusColor(run.status))
+                        Spacer()
+                        Text(run.startedAt.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(AeroTheme.faintText)
+                    }
+                    Text(run.taskSummary)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AeroTheme.text)
+                        .lineLimit(2)
+                    Text("\(run.modelName) · \(run.files.count) 个文件 · +\(run.additions) -\(run.deletions)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                        .lineLimit(1)
+                }
+                .padding(.vertical, 5)
+                .tag(run.id)
+            }
+        }
+        .listStyle(.sidebar)
+        .frame(width: 292)
+        .scrollContentBackground(.hidden)
+        .background(Color.white.opacity(0.48))
+    }
+
+    @ViewBuilder
+    private var detailPane: some View {
+        if let run = selectedRun {
+            VStack(alignment: .leading, spacing: 0) {
+                runSummary(run)
+                Divider().opacity(0.32)
+                HStack(spacing: 0) {
+                    fileList(run)
+                    Divider().opacity(0.32)
+                    patchPane(run)
+                }
+            }
+        } else {
+            Color.clear
+        }
+    }
+
+    private func runSummary(_ run: AgentRunRecord) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(run.taskSummary)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(AeroTheme.text)
+                        .lineLimit(2)
+                    Text("\(run.channelName) · \(run.modelName) · \(run.engine.channelDisplayName) CLI")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                Spacer(minLength: 16)
+                statusPill(run.status)
+            }
+
+            HStack(spacing: 13) {
+                Label("\(run.files.count) 个文件", systemImage: "doc.text")
+                Text("+\(run.additions)").foregroundStyle(AeroTheme.deepLeaf)
+                Text("-\(run.deletions)").foregroundStyle(AeroTheme.destructive)
+                if let completedAt = run.completedAt {
+                    Text("完成于 \(completedAt.formatted(date: .omitted, time: .shortened))")
+                }
+                Spacer()
+                if run.checkpoint != nil, !run.checkpoint!.isRestored {
+                    Button {
+                        isRestoreConfirmationPresented = true
+                    } label: {
+                        Label(viewModel.isRestoringRun ? "正在恢复" : "恢复到运行前", systemImage: "arrow.uturn.backward.circle")
+                    }
+                    .buttonStyle(AeroHeaderButtonStyle())
+                    .disabled(viewModel.isRestoringRun || run.status == .running)
+                    .help("仅在工作区没有后续人工修改时可恢复")
+                } else if run.checkpoint?.isRestored == true {
+                    Label("已恢复", systemImage: "checkmark.circle")
+                        .foregroundStyle(AeroTheme.deepLeaf)
+                }
+            }
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundStyle(AeroTheme.faintText)
+
+            if let reason = run.checkpointUnavailableReason {
+                Label(reason, systemImage: "info.circle")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                    .lineLimit(2)
+            }
+        }
+        .padding(18)
+        .background(Color.white.opacity(0.57))
+    }
+
+    private func fileList(_ run: AgentRunRecord) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("文件")
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(AeroTheme.secondaryText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+            Divider().opacity(0.25)
+            if run.files.isEmpty {
+                Text("没有检测到文件变更")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(AeroTheme.faintText)
+                    .padding(14)
+                Spacer()
+            } else {
+                List(selection: $selectedFileID) {
+                    ForEach(run.files) { file in
+                        HStack(spacing: 7) {
+                            Image(systemName: fileIcon(file.kind))
+                                .foregroundStyle(fileColor(file.kind))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(file.path)
+                                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(AeroTheme.text)
+                                    .lineLimit(2)
+                                Text(file.kind.displayName)
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundStyle(fileColor(file.kind))
+                            }
+                            Spacer(minLength: 2)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("+\(file.additions)").foregroundStyle(AeroTheme.deepLeaf)
+                                Text("-\(file.deletions)").foregroundStyle(AeroTheme.destructive)
+                            }
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        }
+                        .padding(.vertical, 3)
+                        .tag(file.id)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .frame(width: 264)
+        .background(Color.white.opacity(0.34))
+    }
+
+    private func patchPane(_ run: AgentRunRecord) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(selectedFile?.path ?? "变更详情")
+                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                    .lineLimit(1)
+                Spacer()
+                Text("\(run.files.count) 项")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(AeroTheme.faintText)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            Divider().opacity(0.25)
+
+            if let patch = selectedFile?.patch, !patch.isEmpty {
+                ScrollView([.vertical, .horizontal]) {
+                    Text(patch)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(AeroTheme.text)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: true, vertical: true)
+                        .padding(14)
+                }
+                .background(Color(red: 239 / 255, green: 249 / 255, blue: 252 / 255))
+            } else {
+                VStack(spacing: 9) {
+                    Image(systemName: selectedFile?.kind == .binary ? "doc.fill" : "doc.text")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(AeroTheme.faintText)
+                    Text(selectedFile?.kind == .binary ? "二进制文件不提供文本补丁" : "选择文件查看补丁")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(AeroTheme.secondaryText)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.45))
+    }
+
+    private func statusPill(_ status: AgentRunStatus) -> some View {
+        Label(status.displayName, systemImage: statusIcon(status))
+            .font(.system(size: 10.5, weight: .heavy))
+            .foregroundStyle(statusColor(status))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(statusColor(status).opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func statusIcon(_ status: AgentRunStatus) -> String {
+        switch status {
+        case .running: "arrow.triangle.2.circlepath"
+        case .completed: "checkmark.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        case .cancelled: "stop.circle.fill"
+        case .restored: "arrow.uturn.backward.circle.fill"
+        }
+    }
+
+    private func statusColor(_ status: AgentRunStatus) -> Color {
+        switch status {
+        case .running: AeroTheme.deepSky
+        case .completed, .restored: AeroTheme.deepLeaf
+        case .failed: AeroTheme.destructive
+        case .cancelled: AeroTheme.secondaryText
+        }
+    }
+
+    private func fileIcon(_ kind: AgentRunFileChangeKind) -> String {
+        switch kind {
+        case .added: "plus.circle.fill"
+        case .modified: "pencil.circle.fill"
+        case .deleted: "minus.circle.fill"
+        case .binary: "doc.fill"
+        }
+    }
+
+    private func fileColor(_ kind: AgentRunFileChangeKind) -> Color {
+        switch kind {
+        case .added: AeroTheme.deepLeaf
+        case .modified: AeroTheme.deepSky
+        case .deleted: AeroTheme.destructive
+        case .binary: AeroTheme.secondaryText
+        }
+    }
 }
 
 struct AgentRunProgress: Equatable {
@@ -532,6 +2287,15 @@ private enum AgentAttachmentError: LocalizedError {
 private enum AgentContextHandoffEvent {
     case compaction
     case modelSwitch(String)
+    case recovery
+
+    var manifestKind: AgentHandoffKind {
+        switch self {
+        case .compaction: .compaction
+        case .modelSwitch: .modelSwitch
+        case .recovery: .recovery
+        }
+    }
 }
 
 @MainActor
@@ -553,14 +2317,25 @@ final class AgentWorkspaceViewModel: ObservableObject {
     @Published private(set) var grokStatusIcon = "clock"
     @Published private(set) var installingCLI: AgentEngineKind?
     @Published private(set) var cliInstallationError: String?
+    @Published private(set) var runReviewError: String?
+    @Published private(set) var maintenanceError: String?
+    @Published private(set) var isMaintaining = false
+    @Published private(set) var lastBackupURL: URL?
+    @Published private(set) var pendingBackupRestoreSummary: String?
+    @Published private(set) var isRestoringRun = false
     @Published private(set) var selectedTargetID = ""
     @Published private(set) var reasoningEffortOverrides: [String: AgentReasoningEffort] = [:]
     @Published private(set) var runProgress = AgentRunProgress()
     @Published private(set) var draftAttachments: [AgentAttachmentRecord] = []
+    @Published private(set) var personalPreferences = AgentPersonalPreferences()
+    @Published private(set) var inboxItems: [AgentInboxItem] = []
     @Published var draft = ""
 
     private let provider = AgentProviderRouter()
-    private let historyStore = AgentHistoryStore()
+    private let historyStore: AgentHistoryStore
+    private let maintenanceStore: AgentMaintenanceStore
+    private let checkpointStore = AgentRunCheckpointStore()
+    private let personalPreferencesStore = AgentPersonalPreferencesStore()
     private var runTask: Task<Void, Never>?
     private var activeTargetID: String?
     private var contextSummary: String?
@@ -569,10 +2344,14 @@ final class AgentWorkspaceViewModel: ObservableObject {
     private var compactedEntryCount = 0
     private var contextGeneration = 0
     private var lastInputTokens: Int?
+    private var handoffManifests: [AgentHandoffManifest] = []
+    private var referencedLibraryDocumentIDs: [UUID] = []
+    private var pendingBackupRestore: AgentBackupPayload?
     private var runStartedAt: Date?
     private var runCompletionRecorded = false
     private var runBaselineSnapshot = AgentWorkspaceChangeSnapshot()
     private var runTouchedPaths: Set<String> = []
+    private var activeRunID: UUID?
     private var didRestoreHistory = false
     private var codexAvailable: Bool?
     private var claudeAvailable: Bool?
@@ -583,6 +2362,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
     private let reasoningEffortDefaultsKey = "agent.reasoning-effort-overrides"
 
     init() {
+        let historyStore = AgentHistoryStore()
+        self.historyStore = historyStore
+        self.maintenanceStore = AgentMaintenanceStore(historyStore: historyStore)
         selectedTargetID = UserDefaults.standard.string(forKey: "agent.selected-target-id")
             ?? ""
         let storedEfforts = UserDefaults.standard.dictionary(
@@ -593,6 +2375,7 @@ final class AgentWorkspaceViewModel: ObservableObject {
                 result[item.key] = effort
             }
         }
+        personalPreferences = personalPreferencesStore.load()
     }
 
     func restoreWorkspace() {
@@ -602,6 +2385,7 @@ final class AgentWorkspaceViewModel: ObservableObject {
         do {
             let archive = try historyStore.load()
             projects = archive.projects
+            inboxItems = archive.inbox
             if let projectID = archive.selectedProjectID,
                projects.contains(where: { $0.id == projectID }) {
                 selectProject(projectID, preferredSessionID: archive.selectedSessionID, persists: false)
@@ -652,6 +2436,242 @@ final class AgentWorkspaceViewModel: ObservableObject {
 
     var selectedSessionTitle: String {
         currentSession?.title ?? "新会话"
+    }
+
+    var latestRun: AgentRunRecord? {
+        currentSession?.runRecords.max(by: { $0.startedAt < $1.startedAt })
+    }
+
+    var runRecords: [AgentRunRecord] {
+        (currentSession?.runRecords ?? []).sorted { $0.startedAt > $1.startedAt }
+    }
+
+    var contextManifests: [AgentHandoffManifest] {
+        handoffManifests.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var currentContextSummary: String? {
+        contextSummary
+    }
+
+    var isContextHandoffPending: Bool {
+        contextHandoffPending
+    }
+
+    var projectMemory: AgentProjectMemory {
+        currentProject?.memory ?? AgentProjectMemory()
+    }
+
+    var builtInWorkflows: [AgentWorkflow] {
+        AgentWorkflow.builtInWorkflows()
+    }
+
+    var customWorkflows: [AgentWorkflow] {
+        currentProject?.customWorkflows.sorted {
+            if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+            return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+        } ?? []
+    }
+
+    var libraryDocuments: [AgentLibraryDocument] {
+        currentProject?.localLibrary.sorted {
+            if $0.indexedAt != $1.indexedAt { return $0.indexedAt > $1.indexedAt }
+            return $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+        } ?? []
+    }
+
+    var referencedLibraryDocuments: [AgentLibraryDocument] {
+        let byID = Dictionary(uniqueKeysWithValues: libraryDocuments.map { ($0.id, $0) })
+        return referencedLibraryDocumentIDs.compactMap { byID[$0] }
+    }
+
+    var sortedInboxItems: [AgentInboxItem] {
+        inboxItems.sorted {
+            if $0.status != $1.status { return $0.status == .open }
+            return $0.updatedAt > $1.updatedAt
+        }
+    }
+
+    var openInboxItems: [AgentInboxItem] {
+        inboxItems.filter { $0.status == .open }
+    }
+
+    var healthChecks: [AgentHealthCheck] {
+        maintenanceStore.healthChecks(for: currentArchive)
+    }
+
+    func addLibrarySources(_ urls: [URL]) {
+        guard !isRunning,
+              let projectID = selectedProjectID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else { return }
+        let existing = projects[projectIndex].localLibrary
+        statusText = "正在建立资料索引"
+        Task { [weak self] in
+            let indexed = await Task.detached(priority: .utility) {
+                urls.compactMap { url -> AgentLibraryDocument? in
+                    let standardizedPath = url.standardizedFileURL.resolvingSymlinksInPath().path
+                    let existingID = existing.first(where: { $0.path == standardizedPath })?.id
+                    return try? AgentLibraryIndexer.index(url: url, existingID: existingID)
+                }
+            }.value
+            guard let self,
+                  let index = self.projects.firstIndex(where: { $0.id == projectID }) else { return }
+            var documents = self.projects[index].libraryDocuments ?? []
+            for document in indexed {
+                if let existingIndex = documents.firstIndex(where: { $0.id == document.id || $0.path == document.path }) {
+                    documents[existingIndex] = document
+                } else {
+                    documents.append(document)
+                }
+            }
+            self.projects[index].libraryDocuments = documents.isEmpty ? nil : documents
+            self.projects[index].updatedAt = .now
+            self.statusText = indexed.isEmpty ? "未能建立资料索引" : "已索引 \(indexed.count) 份资料"
+            self.persistHistory()
+        }
+    }
+
+    func refreshLibraryDocument(_ documentID: UUID) {
+        guard !isRunning,
+              let document = libraryDocuments.first(where: { $0.id == documentID }) else { return }
+        addLibrarySources([document.url])
+    }
+
+    func removeLibraryDocument(_ documentID: UUID) {
+        guard !isRunning,
+              let projectID = selectedProjectID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else { return }
+        var documents = projects[projectIndex].libraryDocuments ?? []
+        documents.removeAll { $0.id == documentID }
+        projects[projectIndex].libraryDocuments = documents.isEmpty ? nil : documents
+        referencedLibraryDocumentIDs.removeAll { $0 == documentID }
+        projects[projectIndex].updatedAt = .now
+        statusText = "已移除资料引用"
+        updateCurrentSession()
+    }
+
+    func setLibraryDocumentReferenced(_ documentID: UUID, isReferenced: Bool) {
+        guard !isRunning, libraryDocuments.contains(where: { $0.id == documentID }) else { return }
+        if isReferenced {
+            if !referencedLibraryDocumentIDs.contains(documentID) {
+                referencedLibraryDocumentIDs.append(documentID)
+            }
+        } else {
+            referencedLibraryDocumentIDs.removeAll { $0 == documentID }
+        }
+        statusText = isReferenced ? "资料已引用到当前会话" : "已取消资料引用"
+        updateCurrentSession()
+    }
+
+    func saveInboxItem(_ item: AgentInboxItem) {
+        guard !isRunning else { return }
+        let title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        var updated = item
+        updated.title = title
+        updated.detail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.updatedAt = .now
+        if let index = inboxItems.firstIndex(where: { $0.id == item.id }) {
+            updated.createdAt = inboxItems[index].createdAt
+            inboxItems[index] = updated
+        } else {
+            inboxItems.append(updated)
+        }
+        statusText = "任务已保存到收件箱"
+        persistHistory()
+    }
+
+    func deleteInboxItem(_ itemID: UUID) {
+        guard !isRunning else { return }
+        inboxItems.removeAll { $0.id == itemID }
+        statusText = "已删除收件箱任务"
+        persistHistory()
+    }
+
+    func toggleInboxItem(_ itemID: UUID) {
+        guard !isRunning, let index = inboxItems.firstIndex(where: { $0.id == itemID }) else { return }
+        inboxItems[index].status = inboxItems[index].status == .open ? .completed : .open
+        inboxItems[index].updatedAt = .now
+        persistHistory()
+    }
+
+    func assignInboxItem(_ itemID: UUID, to projectID: UUID?) {
+        guard !isRunning, let index = inboxItems.firstIndex(where: { $0.id == itemID }) else { return }
+        inboxItems[index].projectID = projectID
+        inboxItems[index].updatedAt = .now
+        statusText = projectID == nil ? "任务已移出项目" : "任务已分配到项目"
+        persistHistory()
+    }
+
+    func prepareInboxItem(_ itemID: UUID) {
+        guard !isRunning, let item = inboxItems.first(where: { $0.id == itemID }) else { return }
+        if let projectID = item.projectID, projectID != selectedProjectID {
+            selectProject(projectID)
+        }
+        draft = [item.title, item.detail].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        statusText = "已写入 Agent 输入框"
+    }
+
+    func saveWorkflow(_ workflow: AgentWorkflow) {
+        let title = workflow.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = workflow.promptTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isRunning,
+              !title.isEmpty,
+              !prompt.isEmpty,
+              let projectID = selectedProjectID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
+            return
+        }
+        var updated = workflow
+        updated.title = title
+        updated.promptTemplate = prompt
+        updated.updatedAt = .now
+        var workflows = projects[projectIndex].workflows ?? []
+        if let existingIndex = workflows.firstIndex(where: { $0.id == workflow.id }) {
+            updated.createdAt = workflows[existingIndex].createdAt
+            workflows[existingIndex] = updated
+        } else {
+            workflows.append(updated)
+        }
+        projects[projectIndex].workflows = workflows
+        projects[projectIndex].updatedAt = .now
+        persistHistory()
+        statusText = "快捷工作流已保存"
+    }
+
+    func deleteWorkflow(_ workflowID: UUID) {
+        guard !isRunning,
+              let projectID = selectedProjectID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
+            return
+        }
+        var workflows = projects[projectIndex].workflows ?? []
+        workflows.removeAll { $0.id == workflowID }
+        projects[projectIndex].workflows = workflows.isEmpty ? nil : workflows
+        projects[projectIndex].updatedAt = .now
+        persistHistory()
+        statusText = "快捷工作流已删除"
+    }
+
+    func saveMemory(
+        projectMemory: AgentProjectMemory,
+        personalPreferences: AgentPersonalPreferences
+    ) {
+        guard !isRunning,
+              let projectID = selectedProjectID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else {
+            return
+        }
+        var updatedMemory = projectMemory
+        updatedMemory.updatedAt = .now
+        var updatedPreferences = personalPreferences
+        updatedPreferences.updatedAt = .now
+        projects[projectIndex].memory = updatedMemory
+        projects[projectIndex].updatedAt = .now
+        self.personalPreferences = updatedPreferences
+        personalPreferencesStore.save(updatedPreferences)
+        persistHistory()
+        statusText = "项目记忆已保存"
     }
 
     func selectProject(_ projectID: UUID) {
@@ -721,13 +2741,19 @@ final class AgentWorkspaceViewModel: ObservableObject {
             threadID = nil
             updateCurrentSession()
         } else if let workspaceURL {
+            let sourceTargetID = activeTargetID
             activeTargetID = target.id
             let plan = AgentContextCompactor.recoveryPlan(
                 entries: entries,
                 projectPath: workspaceURL.path,
                 reason: "已切换到 \(target.title)"
             )
-            applyContextHandoff(plan, event: .modelSwitch(target.title))
+            applyContextHandoff(
+                plan,
+                event: .modelSwitch(target.title),
+                sourceTargetID: sourceTargetID,
+                destinationTarget: target
+            )
             statusText = "已切换到 \(target.title)，可继续当前任务"
         }
     }
@@ -831,6 +2857,119 @@ final class AgentWorkspaceViewModel: ObservableObject {
         draftAttachments = []
     }
 
+    func dismissRunReviewError() {
+        runReviewError = nil
+    }
+
+    func dismissMaintenanceError() {
+        maintenanceError = nil
+    }
+
+    func exportBackup() {
+        guard !isRunning, !isMaintaining else { return }
+        let panel = NSSavePanel()
+        panel.title = "导出 Agent 备份"
+        panel.prompt = "导出"
+        panel.nameFieldStringValue = "hey-chat-agent-backup.heychat-agent-backup"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        isMaintaining = true
+        defer { isMaintaining = false }
+        do {
+            try maintenanceStore.writeBackup(
+                AgentBackupPayload(
+                    archive: currentArchive,
+                    personalPreferences: personalPreferences
+                ),
+                to: url
+            )
+            lastBackupURL = url
+            statusText = "Agent 备份已导出"
+        } catch {
+            maintenanceError = error.localizedDescription
+        }
+    }
+
+    func chooseBackupForRestore() -> Bool {
+        guard !isRunning, !isMaintaining else { return false }
+        let panel = NSOpenPanel()
+        panel.title = "选择 Agent 备份"
+        panel.prompt = "选择"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        do {
+            let payload = try maintenanceStore.readBackup(from: url)
+            pendingBackupRestore = payload
+            pendingBackupRestoreSummary = "备份创建于 \(payload.createdAt.formatted(date: .abbreviated, time: .shortened))，包含 \(payload.archive.projects.count) 个项目和 \(payload.archive.inbox.count) 项收件箱任务。"
+            return true
+        } catch {
+            maintenanceError = error.localizedDescription
+            return false
+        }
+    }
+
+    func cancelPendingBackupRestore() {
+        pendingBackupRestore = nil
+        pendingBackupRestoreSummary = nil
+    }
+
+    func confirmPendingBackupRestore() {
+        guard !isRunning, !isMaintaining, let payload = pendingBackupRestore else { return }
+        isMaintaining = true
+        defer {
+            isMaintaining = false
+            cancelPendingBackupRestore()
+        }
+        do {
+            let safetyBackupURL = try maintenanceStore.createAutomaticBackup(
+                archive: currentArchive,
+                personalPreferences: personalPreferences
+            )
+            try historyStore.save(payload.archive)
+            personalPreferencesStore.save(payload.personalPreferences)
+            projects = []
+            inboxItems = []
+            personalPreferences = payload.personalPreferences
+            didRestoreHistory = false
+            clearWorkspaceSelection()
+            restoreWorkspace()
+            lastBackupURL = safetyBackupURL
+            statusText = "已恢复 Agent 备份；恢复前数据已自动备份"
+        } catch {
+            maintenanceError = error.localizedDescription
+        }
+    }
+
+    func restoreRun(_ runID: UUID) {
+        guard !isRunning, !isRestoringRun,
+              let workspaceURL,
+              let run = currentSession?.runRecords.first(where: { $0.id == runID }) else {
+            return
+        }
+        isRestoringRun = true
+        statusText = "正在恢复检查点"
+        let checkpointStore = checkpointStore
+        Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                Result {
+                    try checkpointStore.restore(run, workspaceURL: workspaceURL)
+                }
+            }.value
+            guard let self else { return }
+            self.isRestoringRun = false
+            switch result {
+            case .success(let restoredRun):
+                self.replaceRun(restoredRun)
+                self.statusText = "已恢复到 Agent 运行前"
+                self.persistHistory()
+            case .failure(let error):
+                self.statusText = "恢复未执行"
+                self.runReviewError = error.localizedDescription
+            }
+        }
+    }
+
     func send(_ prompt: String, target: AgentProviderTarget) {
         guard let workspaceURL, !isRunning else { return }
         if selectedSessionID == nil {
@@ -865,7 +3004,7 @@ final class AgentWorkspaceViewModel: ObservableObject {
                 projectPath: workspaceURL.path,
                 reason: "已恢复为新的 CLI 会话"
             )
-            applyContextCompaction(plan)
+            applyContextHandoff(plan, event: .recovery)
         }
 
         activeTargetID = target.id
@@ -881,11 +3020,15 @@ final class AgentWorkspaceViewModel: ObservableObject {
         runProgress = AgentRunProgress()
         runBaselineSnapshot = AgentWorkspaceChangeSnapshot()
         runTouchedPaths = []
+        activeRunID = nil
         statusText = "正在启动 Agent"
         updateCurrentSession()
 
         let writableURLs = additionalWritableURLs
         let activeThreadID = threadID
+        let projectMemoryContext = self.projectMemory.context
+        let personalPreferencesContext = self.personalPreferences.context
+        let libraryContext = self.libraryContext(matching: displayPrompt)
         let contextHandoff = contextHandoffPending ? contextSummary : nil
         let reasoningEffort = reasoningEffort(for: target)
         runTask = Task { [weak self] in
@@ -905,6 +3048,16 @@ final class AgentWorkspaceViewModel: ObservableObject {
                     Self.workspaceChangeSnapshot(at: workspaceURL)
                 }.value
                 try Task.checkCancellation()
+                let checkpointStore = checkpointStore
+                let runRecord = await Task.detached(priority: .utility) {
+                    checkpointStore.beginRun(
+                        workspaceURL: workspaceURL,
+                        taskSummary: displayPrompt,
+                        target: target
+                    )
+                }.value
+                registerRun(runRecord)
+                try Task.checkCancellation()
                 let request = AgentRunRequest(
                     prompt: displayPrompt,
                     attachments: stagedAttachments.attachments,
@@ -913,6 +3066,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
                         + [stagedAttachments.directoryURL].compactMap { $0 },
                     target: target,
                     threadID: activeThreadID,
+                    projectMemory: projectMemoryContext,
+                    personalPreferences: personalPreferencesContext,
+                    libraryContext: libraryContext,
                     contextHandoff: contextHandoff,
                     reasoningEffort: reasoningEffort
                 )
@@ -937,7 +3093,7 @@ final class AgentWorkspaceViewModel: ObservableObject {
                         projectPath: workspaceURL.path,
                         reason: "原会话无法恢复，已自动接续"
                     )
-                    applyContextCompaction(recoveryPlan)
+                    applyContextHandoff(recoveryPlan, event: .recovery)
                     statusText = "正在接续新的 Agent 会话"
                     let retryRequest = AgentRunRequest(
                         prompt: displayPrompt,
@@ -947,6 +3103,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
                             + [stagedAttachments.directoryURL].compactMap { $0 },
                         target: target,
                         threadID: nil,
+                        projectMemory: projectMemoryContext,
+                        personalPreferences: personalPreferencesContext,
+                        libraryContext: libraryContext,
                         contextHandoff: recoveryPlan.summary,
                         reasoningEffort: reasoningEffort
                     )
@@ -956,13 +3115,16 @@ final class AgentWorkspaceViewModel: ObservableObject {
                     await refreshRunChangeStats()
                     recordCompletion(usage: nil)
                 }
+                await finalizeActiveRun(status: .completed)
                 isRunning = false
                 statusText = "任务已完成"
                 updateCurrentSession()
             } catch is CancellationError {
+                await finalizeActiveRun(status: .cancelled)
                 isRunning = false
                 statusText = "任务已停止"
             } catch {
+                await finalizeActiveRun(status: .failed, finalMessage: error.localizedDescription)
                 isRunning = false
                 if Task.isCancelled {
                     statusText = "任务已停止"
@@ -1181,6 +3343,7 @@ final class AgentWorkspaceViewModel: ObservableObject {
         case .threadStarted(let id):
             threadID = id
             contextHandoffPending = false
+            markLatestHandoffDelivered()
             updateCurrentSession()
         case .status(let text):
             statusText = text
@@ -1246,22 +3409,47 @@ final class AgentWorkspaceViewModel: ObservableObject {
 
     private func applyContextHandoff(
         _ plan: AgentContextCompactionPlan,
-        event: AgentContextHandoffEvent
+        event: AgentContextHandoffEvent,
+        sourceTargetID: String? = nil,
+        destinationTarget: AgentProviderTarget? = nil
     ) {
+        let now = Date.now
         contextSummary = plan.summary
         contextHandoffPending = true
-        lastCompactedAt = .now
+        lastCompactedAt = now
         compactedEntryCount = plan.sourceEntryCount
         contextGeneration += 1
         lastInputTokens = nil
         threadID = nil
+        handoffManifests.append(
+            AgentHandoffManifest(
+                generation: contextGeneration,
+                kind: event.manifestKind,
+                reason: plan.reason,
+                sourceEntryCount: plan.sourceEntryCount,
+                estimatedTokens: plan.estimatedTokens,
+                sourceTargetID: sourceTargetID ?? activeTargetID,
+                destinationTargetID: destinationTarget?.id ?? activeTargetID,
+                destinationModelName: destinationTarget?.title,
+                createdAt: now,
+                content: plan.summary
+            )
+        )
         switch event {
         case .compaction:
             entries.append(.contextCompact(generation: contextGeneration, reason: plan.reason))
         case .modelSwitch(let modelName):
             entries.append(.modelSwitch(to: modelName, generation: contextGeneration))
+        case .recovery:
+            entries.append(.contextCompact(generation: contextGeneration, reason: plan.reason))
         }
         updateCurrentSession()
+    }
+
+    private func markLatestHandoffDelivered() {
+        guard let index = handoffManifests.indices.last,
+              handoffManifests[index].deliveredAt == nil else { return }
+        handoffManifests[index].deliveredAt = .now
     }
 
     private static func shouldRetryFreshThread(after error: Error) -> Bool {
@@ -1465,6 +3653,20 @@ final class AgentWorkspaceViewModel: ObservableObject {
             .sessions.first(where: { $0.id == sessionID })
     }
 
+    private var currentArchive: AgentHistoryArchive {
+        AgentHistoryArchive(
+            selectedProjectID: selectedProjectID,
+            selectedSessionID: selectedSessionID,
+            projects: projects,
+            inboxItems: inboxItems.isEmpty ? nil : inboxItems
+        )
+    }
+
+    private var currentProject: AgentProjectRecord? {
+        guard let projectID = selectedProjectID else { return nil }
+        return projects.first(where: { $0.id == projectID })
+    }
+
     private func selectProject(
         _ projectID: UUID,
         preferredSessionID: UUID?,
@@ -1497,6 +3699,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
         compactedEntryCount = session.compactedEntryCount ?? 0
         contextGeneration = session.contextGeneration ?? 0
         lastInputTokens = session.lastInputTokens
+        handoffManifests = session.handoffManifests
+        referencedLibraryDocumentIDs = session.referencedLibraryDocumentIDs
+        activeRunID = nil
         activeTargetID = session.targetID ?? selectedTargetID.nilIfEmpty
         if let targetID = session.targetID {
             selectedTargetID = targetID
@@ -1519,6 +3724,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
         compactedEntryCount = 0
         contextGeneration = 0
         lastInputTokens = nil
+        handoffManifests = []
+        referencedLibraryDocumentIDs = []
+        activeRunID = nil
         activeTargetID = selectedTargetID.nilIfEmpty
         statusText = "准备新会话"
         draft = ""
@@ -1538,6 +3746,9 @@ final class AgentWorkspaceViewModel: ObservableObject {
         compactedEntryCount = 0
         contextGeneration = 0
         lastInputTokens = nil
+        handoffManifests = []
+        referencedLibraryDocumentIDs = []
+        activeRunID = nil
         activeTargetID = selectedTargetID.nilIfEmpty
         statusText = "请选择项目"
         draft = ""
@@ -1560,8 +3771,66 @@ final class AgentWorkspaceViewModel: ObservableObject {
         projects[projectIndex].sessions[sessionIndex].compactedEntryCount = compactedEntryCount
         projects[projectIndex].sessions[sessionIndex].contextGeneration = contextGeneration
         projects[projectIndex].sessions[sessionIndex].lastInputTokens = lastInputTokens
+        projects[projectIndex].sessions[sessionIndex].handoffs = handoffManifests.isEmpty
+            ? nil
+            : handoffManifests
+        projects[projectIndex].sessions[sessionIndex].libraryDocumentIDs = referencedLibraryDocumentIDs.isEmpty
+            ? nil
+            : referencedLibraryDocumentIDs
         projects[projectIndex].sessions[sessionIndex].updatedAt = now
         projects[projectIndex].updatedAt = now
+        persistHistory()
+    }
+
+    private func registerRun(_ record: AgentRunRecord) {
+        guard let projectID = selectedProjectID, let sessionID = selectedSessionID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let sessionIndex = projects[projectIndex].sessions.firstIndex(where: { $0.id == sessionID }) else {
+            return
+        }
+        if projects[projectIndex].sessions[sessionIndex].runs == nil {
+            projects[projectIndex].sessions[sessionIndex].runs = []
+        }
+        projects[projectIndex].sessions[sessionIndex].runs?.append(record)
+        activeRunID = record.id
+        projects[projectIndex].sessions[sessionIndex].updatedAt = .now
+        projects[projectIndex].updatedAt = .now
+        persistHistory()
+    }
+
+    private func replaceRun(_ record: AgentRunRecord) {
+        guard let projectID = selectedProjectID, let sessionID = selectedSessionID,
+              let projectIndex = projects.firstIndex(where: { $0.id == projectID }),
+              let sessionIndex = projects[projectIndex].sessions.firstIndex(where: { $0.id == sessionID }),
+              let runIndex = projects[projectIndex].sessions[sessionIndex].runs?.firstIndex(where: { $0.id == record.id }) else {
+            return
+        }
+        projects[projectIndex].sessions[sessionIndex].runs?[runIndex] = record
+        projects[projectIndex].sessions[sessionIndex].updatedAt = .now
+        projects[projectIndex].updatedAt = .now
+    }
+
+    private func finalizeActiveRun(
+        status: AgentRunStatus,
+        finalMessage: String? = nil
+    ) async {
+        guard let runID = activeRunID,
+              let workspaceURL,
+              let run = currentSession?.runRecords.first(where: { $0.id == runID }) else {
+            activeRunID = nil
+            return
+        }
+        let checkpointStore = checkpointStore
+        let finalizedRun = await Task.detached(priority: .utility) {
+            checkpointStore.finishRun(
+                run,
+                workspaceURL: workspaceURL,
+                status: status,
+                finalMessage: finalMessage
+            )
+        }.value
+        replaceRun(finalizedRun)
+        activeRunID = nil
         persistHistory()
     }
 
@@ -1595,16 +3864,31 @@ final class AgentWorkspaceViewModel: ObservableObject {
     }
 
     private func persistHistory() {
-        let archive = AgentHistoryArchive(
-            selectedProjectID: selectedProjectID,
-            selectedSessionID: selectedSessionID,
-            projects: projects
-        )
         do {
-            try historyStore.save(archive)
+            try historyStore.save(currentArchive)
         } catch {
             statusText = "历史记录保存失败：\(error.localizedDescription)"
         }
+    }
+
+    private func libraryContext(matching prompt: String) -> String? {
+        let documents = referencedLibraryDocuments
+        guard !documents.isEmpty else { return nil }
+        return documents.map { document in
+            let excerpt = document.contextExcerpt(matching: prompt, maximumCharacters: 4_000)
+            return """
+            ## \(document.displayName)
+            来源路径：\(document.path)
+            类型：\(document.kindDisplayName)\(document.isDirectory ? "（已索引 \(document.indexedFileCount) 个文件）" : "")
+            摘录：
+            \(excerpt)
+            """
+        }.joined(separator: "\n\n")
+    }
+
+    func projectDisplayName(for projectID: UUID?) -> String? {
+        guard let projectID else { return nil }
+        return projects.first(where: { $0.id == projectID })?.displayName
     }
 
     private func migrateLegacyWorkspaceIfNeeded() {

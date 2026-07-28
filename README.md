@@ -1,225 +1,207 @@
 <p align="center">
-  <img src="ChatMac/Assets.xcassets/AppMark.imageset/app-mark.svg" width="104" alt="hey chat logo">
+  <img src="ChatMac/Assets.xcassets/AppMark.imageset/app-mark.svg" width="112" alt="hey chat logo">
 </p>
 
 <h1 align="center">hey chat</h1>
 
 <p align="center">
-  一个运行在 macOS 上的本地 AI 聚合客户端，将聊天、开发 Agent、图片、视频和 Skills 放进同一个工作空间。
+  本机优先的 macOS 个人 Agent 工作台。把长期项目、Codex / Claude 路由、可审查执行、资料与待办放在同一个桌面应用里。
 </p>
 
 <p align="center">
-  <strong>Base URL + API Key</strong> · <strong>Codex / Claude 多路由 Agent</strong> · <strong>本地持久化</strong> · <strong>Frutiger Aero UI</strong>
+  <strong>macOS 原生 SwiftUI</strong> · <strong>Base URL + API Key</strong> · <strong>本地持久化</strong> · <strong>Frutiger Aero</strong>
 </p>
 
-![Frutiger Aero landscape](ChatMac/Assets.xcassets/AeroLandscape.imageset/aero-landscape.svg)
+![hey chat Frutiger Aero interface](ChatMac/Assets.xcassets/AeroLandscape.imageset/aero-landscape.svg)
+
+## 它解决什么问题
+
+hey chat 不是网页登录器，也不尝试做多用户 SaaS。它面向一台 Mac、一个使用者和长期积累的项目工作：
+
+- 在一个项目下保存多个 Agent 会话，而不是每次从空白聊天重新开始。
+- 使用自己购买的聚合渠道，通过 `Base URL + API Key` 配置 Codex 或 Claude Agent 模型。
+- 在同一任务中切换模型，保留项目状态、完整可见历史、执行证据和结构化交接内容。
+- 每轮执行都有检查点、真实 Diff、命令结果和安全恢复入口。
+- 为项目沉淀记忆、资料引用、常用工作流和待办，而不是把关键背景散落在聊天记录中。
+
+普通聊天、图片、视频与 Skills 仍可独立使用；个人 Agent 工作台是应用的核心能力。
 
 ## 下载
 
 当前预编译版本：
 
-- [hey chat v1.0 - macOS arm64](Releases/hey-chat-macos-arm64-v1.0.zip)
+- [hey chat v1.1 - macOS arm64](Releases/hey-chat-macos-arm64-v1.1.zip)
+- [SHA-256 校验值](Releases/SHA256SUMS)
 - 架构：Apple Silicon (`arm64`)
 - 最低系统：macOS 26.5
-- SHA-256：`c6594c47630f2bd44989efb9a00e833e002796778950a338f71b3326e0366468`
 
-下载并解压后，将 `hey chat.app` 拖入“应用程序”目录。当前发布包为临时签名、未经过 Apple 公证；首次运行如果被系统阻止，请在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”确认打开。
+解压后将 `hey chat.app` 拖入“应用程序”。发布包是临时签名、未经过 Apple 公证的个人版本；首次被系统拦截时，在 Finder 中右键应用并选择“打开”，或前往“系统设置 → 隐私与安全性”确认打开。
 
-## 项目定位
-
-hey chat 不是单一厂商客户端。它面向使用聚合中转站、自建网关或 OpenRouter 类服务的场景，通过用户自己的 Base URL 和 API Key 接入模型，不要求在应用中登录 Codex、Claude 或其他厂商账号。
-
-应用目前包含五个主要工作区：
-
-| 模块 | 用途 |
-| --- | --- |
-| 聊天 | 使用 OpenAI 兼容或 Anthropic 兼容模型进行普通对话 |
-| Agent | 让 Codex CLI 或 Claude Code CLI 操作本机项目、运行命令和修改代码 |
-| 媒体 | 图片生成、参考图处理和视频生成任务 |
-| Skills | 管理本机 Skill，按需注入聊天上下文 |
-| 模型 | 按用途管理聊天、Agent、图片和视频渠道 |
-
-## Agent：无损多路由切换
-
-Agent 是 hey chat 的核心。一个 Agent 会话属于某个本机项目，但不绑定单一模型。你可以先用 GPT/Codex 分析和修改代码，再在同一个会话中切换到 Claude 继续完成任务，也可以之后切回原模型。
+## Agent 工作方式
 
 ```mermaid
 flowchart LR
-    A["Codex / GPT 路由"] --> B["同一个项目与会话"]
-    B --> C["结构化上下文交接"]
-    C --> D["Claude 路由"]
-    D --> E["继续当前任务"]
-    E --> C
-    C --> A
+    A["选择项目与会话"] --> B["加载项目记忆、资料和偏好"]
+    B --> C["Codex 或 Claude Agent"]
+    C --> D["命令、文件修改与执行事件"]
+    D --> E["Diff 审查、检查点与结果摘要"]
+    E --> F["保存会话、交接记录和待办"]
+    F --> B
 ```
-
-### “无损”具体指什么
-
-切换模型时，以下内容不会被清空或创建成另一条孤立会话：
-
-- 项目目录和额外授权目录
-- 当前会话 ID、标题和完整可见聊天历史
-- 用户附件记录
-- 已经写入磁盘的代码和工作区状态
-- 用户的长期约束、近期任务目标和未解决问题
-- 文件修改记录、失败命令和关键错误原因
-- Agent 上下文代数和模型切换时间线
-
-模型厂商的上下文窗口并不能真正共享，因此 hey chat 不会把 Codex 的 thread ID 直接交给 Claude，也不会让新模型错误恢复旧模型的原生会话。切换时会启动新的 CLI thread，并从本地完整历史生成一个结构化交接包，再将当前用户请求发送给新模型。
-
-这里的“无损”指本地工作状态、可见历史和高信号任务语义保持连续；并不表示把所有终端日志逐字、逐 token 复制给新模型。成功命令的大段输出会被压缩，避免噪声占满上下文窗口。
-
-### 交接包保留规则
-
-结构化交接会优先保留：
-
-1. 项目路径和用户最初的目标、风格及硬性约束。
-2. 最近的用户与 Agent 对话。
-3. 已修改文件、关键路径和代码状态。
-4. 最近执行的命令、退出码，以及失败命令的错误摘要。
-5. 未解决警告、异常和待办事项。
-6. 用户附件的本机路径。
-
-成功命令的长输出不会完整进入交接包；摘要有明确大小上限，并要求新模型以当前工作区的真实状态为准。模型切换后，时间线会显示“模型已切换”，方便确认后续回复属于哪个阶段。
-
-### 自动上下文压缩
-
-除了手动切换模型，长时间运行的会话也会自动管理上下文：
-
-- Codex 输入上下文达到约 `120,000 tokens` 时进入应用侧换线流程。
-- Claude 输入上下文达到约 `150,000 tokens` 时进入应用侧换线流程。
-- 缺少精确 token 数据时，会结合文本估算、对话轮数和工具事件数量判断。
-- Codex CLI 仍保留自身的原生自动压缩，并使用 hey chat 提供的结构化压缩规则。
-- 原生会话恢复失败时，只有在尚未产生实质执行事件的情况下才自动换新 thread，避免命令被重复执行。
-
-完整 UI 历史始终保存在本地。压缩只影响下一代模型上下文，不会删除用户看到的会话记录。
 
 ### 项目与会话
 
-- 一个项目可以拥有多条独立 Agent 会话。
-- 项目列表和会话历史均持久化保存。
-- 支持删除项目记录或单条会话。
-- 切换聊天、媒体等其他模块后再返回，Agent 历史仍然存在。
-- 每条会话保存 CLI thread、当前目标路由、上下文摘要和压缩代数。
+每个 Agent 项目对应一个本机工作目录，可以拥有多条独立会话。会话会保存：
 
-### 本机开发能力
+- 对话和附件记录、CLI thread、当前模型路由、推理强度。
+- 命令、文件变更、执行耗时、token 使用量和完成状态。
+- 每轮任务的 Git/工作区检查点、真实 Diff 和恢复记录。
+- 上下文压缩代次、模型切换和 CLI 恢复的交接 Manifest。
 
-Agent 可以在获得授权的目录中：
+切换到聊天、媒体或模型管理后再返回，项目和会话均保持本机持久化。项目和会话记录可独立删除，不会删除你的实际代码目录。
 
-- 读取和修改代码文件
-- 搜索仓库内容
-- 执行终端命令和构建任务
-- 展示命令、退出码和折叠后的终端输出
-- 记录文件变化、处理时长、token 使用量和代码行变化
-- 接收图片或普通文件附件
-- 使用额外可写目录处理跨项目文件
-- 调整模型推理强度
+### 可审查执行与恢复
 
-终端命令具有修改本机文件的能力。建议在 Git 仓库中使用 Agent，并在重要操作前保留提交或备份。
+每次 Agent 任务开始前，hey chat 会记录工作区基线；完成后生成该轮真实变更，而不是把已有未提交修改错误归因给 Agent。
 
-## Agent 渠道配置
+- 在“审查”中按文件查看增删行、补丁和二进制文件提示。
+- 显示任务模型、渠道、耗时、命令结果、测试情况和最终状态。
+- 在符合安全条件时，可恢复到本轮 Agent 运行前的检查点。
+- 恢复前会检测额外人工修改，避免静默覆盖后续工作。
 
-Agent 模型目前分为两个执行引擎：
+建议在 Git 仓库中使用 Agent，并在重要节点保留自己的提交。
 
-| 渠道 | CLI | API 协议 | 推荐用途 |
+### 无损多路由交接
+
+一个会话不绑定单一模型。你可以让 Codex 负责执行，再切换 Claude 继续分析、重构或审查，然后再切回。不同 CLI 的原生 thread 无法互通，因此 hey chat 使用本地持久化的 `Handoff Manifest` 衔接：
+
+```mermaid
+flowchart LR
+    A["Codex 会话"] --> B["Handoff Manifest"]
+    B --> C["Claude 新线程"]
+    C --> D["继续同一项目任务"]
+    D --> B
+```
+
+交接包保留用户目标、硬性约束、项目路径、记忆、已完成事项、待办、修改文件、关键命令与退出码、失败原因、附件路径和最近对话。新模型会被要求以当前工作区的真实状态为准。
+
+这里的“无损”有明确边界：
+
+- 本地项目状态、完整可见历史、任务记录和关键执行证据不会因切换而丢失。
+- 模型上下文会进行结构化压缩，不会逐 token 复制所有成功命令的长输出。
+- 自动压缩、手动模型切换和 CLI 恢复都会留下可查看的版本化 Manifest。
+
+“上下文”面板可以查看每一份 Manifest 的触发原因、来源条目数、估算 token、目标模型、传递状态和完整正文。
+
+### 项目记忆与个人偏好
+
+项目记忆用于保存目标、技术栈、常用命令、代码规范、约束和已知问题；个人偏好用于保存跨项目的执行习惯。它们都可编辑、可关闭，并会在新会话、模型切换和 CLI 恢复时继续生效。
+
+项目记忆与个人偏好只会注入 Agent 请求，不会进入普通聊天、图片或视频请求。
+
+### 快捷工作流
+
+Agent 顶栏的“快捷”提供内置工作流：
+
+- 检查项目
+- 构建与测试
+- 总结变更
+- 定位并修复
+
+也可以为每个项目创建自己的工作流，定义图标、提示模板和是否在执行前要求补充输入。`{{input}}` 会在运行时替换为补充内容。
+
+### 本地资料库与收件箱
+
+“资料”用于挂载项目关联的文件或文件夹：
+
+- 支持 Markdown、文本、代码、JSON、CSV、配置文件及 PDF 的有限本地文本索引。
+- 支持按名称、路径和已索引内容搜索，查看匹配摘录，并随时刷新或移除索引。
+- 原文件不会复制进应用；引用后，下一次 Agent 请求只附带来源路径和匹配摘录，Agent 可按需读取原文件。
+
+“收件箱”是全局本机待办：可快速记录临时事项、标记完成、归入任意 Agent 项目，之后通过“交给 Agent”写回对应项目的输入框。
+
+### 维护、备份与健康检查
+
+“维护”面板用于长期个人使用：
+
+- 健康检查项目目录、资料来源、Inbox 和 Agent 历史文件，并明确显示失效原因。
+- 导出或导入 `.heychat-agent-backup` 备份。
+- 导入前自动创建当前 Agent 数据的保护备份。
+- 备份包含项目、会话、运行记录、记忆、资料索引引用、工作流、Inbox 和个人偏好。
+
+API Key、Keychain 内容和原始资料文件均不会写入备份。
+
+## Agent 模型配置
+
+Agent 只保留两条执行路线：
+
+| 路线 | 本机 CLI | 上游协议 | 适用场景 |
 | --- | --- | --- | --- |
-| Codex | Codex CLI | Responses API | 代码分析、命令执行、持续开发任务 |
-| Claude | Claude Code CLI | Anthropic Messages | 代码理解、重构、跨模型接续 |
+| Codex | Codex CLI | Responses API | 开发、命令执行、持续任务 |
+| Claude | Claude Code CLI | Anthropic Messages | 阅读、重构、审查、跨模型接续 |
 
-所有渠道都通过模型管理页面配置：
+配置方式：
 
-1. 打开“模型”。
-2. 新建或编辑 Agent 模型。
-3. 选择 Codex 或 Claude 渠道。
-4. 填写模型标识、Base URL 和 API Key。
-5. 选择默认推理强度并启用模型。
-6. 返回 Agent，在顶部模型菜单中选择该路由。
+1. 进入“模型管理”，新建或编辑 Agent 模型。
+2. 选择 Codex 或 Claude 渠道，填写模型标识、Base URL、API Key 和默认推理强度。
+3. 保存并启用模型。
+4. 返回 Agent，在顶部模型菜单选择所需路由；推理强度可在相邻菜单单独覆盖。
 
-API Key 写入 macOS Keychain，不保存在 Git 仓库、SwiftData 数据库或发布包中。
+应用不要求登录 Codex、Claude 或 Grok 账号。所有请求都使用你配置的中转站、聚合渠道或自建网关。
 
-### CLI 安装
-
-如果当前 Mac 没有对应 CLI，Agent 顶部状态按钮会变成安装按钮。点击后会执行：
+如果本机尚未安装 CLI，Agent 顶部会提供安装按钮：
 
 ```bash
 # Codex
 npm i -g @openai/codex@latest
 
-# Claude Code：官方脚本失败时回退到 npm
+# Claude Code：官方脚本失败时会回退到 npm
 bash -c 'tmp=$(mktemp) && curl -fsSL https://claude.ai/install.sh -o $tmp && bash $tmp; status=$?; rm -f $tmp; exit $status' || npm i -g @anthropic-ai/claude-code@latest
 ```
 
-安装过程在后台运行，成功后自动执行版本检查；失败时会显示末尾错误信息，便于处理 Node.js、PATH 或目录权限问题。
+## 其他工作区
 
-## Frutiger Aero UI
+| 模块 | 能力 |
+| --- | --- |
+| 聊天 | OpenAI 兼容和 Anthropic 兼容模型、持久化会话、Skill 注入、中文输入法组合输入保护 |
+| 图片 | 独立图片模型、生成、参考图处理、本地结果历史 |
+| 视频 | 独立视频模型、生成与轮询、本地文件保存和预览 |
+| Skills | 本机创建、启用和删除 Skills |
+| 模型 | 分别管理聊天、Agent、图片、视频模型与渠道 |
 
-hey chat 延续 Frutiger Aero 的明亮、自然和数字乐观主义风格，同时保持开发工具需要的信息密度：
+## Frutiger Aero 界面
 
-- 天空蓝、叶绿色和白色玻璃质感组成主要色彩。
-- 风景、地球和通透高光作为视觉识别，而不是纯色企业后台。
-- 用户消息与 Agent 回复采用明显的左右和色彩区分。
-- Agent 回复保持连续阅读流，命令与文件事件嵌入同一任务阶段。
-- 多行终端命令默认压缩显示，可展开查看完整输出。
-- 模型、推理强度、授权目录、附件和发送控制都集中在固定区域。
-- 图片与视频工作区保持相同视觉语言，减少模块切换时的割裂感。
+hey chat 使用明亮的天空蓝、叶绿色、白色玻璃表面和自然风景资产建立 Frutiger Aero 视觉语言，同时保持开发任务需要的信息密度：
 
-UI 使用 SwiftUI 构建，视觉变量集中在 `ChatMac/Design/AeroTheme.swift`，方便继续调整颜色、阴影、玻璃表面和交互状态。
+- 用户输入、Agent 文本、命令、文件事件和完成状态保持连续的任务时间线。
+- 终端长输出默认压缩，需要时可展开，避免打断阅读。
+- Diff、上下文、记忆、资料和维护能力以紧凑检查器形式出现。
+- 图片和视频工作区沿用相同色彩、材质和控制风格，切换模块不割裂。
 
-## 其他能力
+主题变量集中在 `ChatMac/Design/AeroTheme.swift`。
 
-### 普通聊天
+## 本地数据与隐私
 
-- OpenAI 兼容与 Anthropic 兼容渠道
-- 多模型选择与会话持久化
-- Skill 系统提示注入
-- token、耗时和错误信息展示
-- 中文输入法组合输入保护
+| 数据 | 存储位置 | 是否随备份导出 |
+| --- | --- | --- |
+| API Key | macOS Keychain | 否 |
+| 聊天、模型、Skills、媒体记录 | 本机 SwiftData | 否，Agent 备份不触及这些数据 |
+| Agent 项目、会话、执行记录、资料引用、Inbox | `Application Support/ChatMac/AgentHistory.json` | 是 |
+| Agent 保护备份 | `Application Support/ChatMac/AgentBackups/` | 可手动保留或导出 |
+| 图片、视频原文件 | 本机应用支持目录 | 否 |
 
-### 图片与视频
-
-- 独立的图片、视频模型配置
-- 图片生成和参考图处理
-- 视频生成、轮询与本地文件保存
-- 媒体历史记录与结果预览
-
-### Skills
-
-- 本机 Skill 创建、启用和删除
-- Skill 内容持久化
-- 聊天时按会话选择 Skill
-
-## 隐私与本地数据
-
-hey chat 是面向单机使用的客户端：
-
-- API Key 保存在 macOS Keychain。
-- 聊天、模型元数据、Skills 和媒体记录使用本机 SwiftData。
-- Agent 项目与会话历史保存在本机 Application Support 目录。
-- 构建出的 `.app` 不包含开发者本机的 API Key、模型配置、Skills 或 Agent 历史。
-- 模型请求会发送到用户配置的 Base URL；Agent CLI 可能根据任务访问网络或执行本机命令。
-
-当前为了兼容已有用户数据，内部 Bundle ID 和部分数据目录仍沿用早期的 `ChatMac` 标识。对外项目名、应用名、target 和 scheme 均为 `hey chat`。
+构建出的 `.app` 不包含开发者本机的模型配置、API Key、Skills、聊天记录或 Agent 历史。模型请求会发送到你配置的 Base URL；Agent CLI 按任务需要访问网络、终端和已经授权的本机目录。
 
 ## 从源码构建
 
-### 环境
+环境要求：
 
 - macOS 26.5 或更高版本
 - Xcode 26.6 或兼容版本
 - Apple Silicon Mac
 - 使用 Agent 时需要 Node.js/npm，以及 Codex CLI 或 Claude Code CLI
 
-### Xcode
-
-打开：
-
-```text
-hey chat.xcodeproj
-```
-
-选择 `hey chat` scheme，使用 `Product → Build` 构建。
-
-### 命令行
+打开 [hey chat.xcodeproj](hey%20chat.xcodeproj)，选择 `hey chat` scheme 后使用 `Product → Build`。命令行构建：
 
 ```bash
 xcodebuild \
@@ -229,40 +211,39 @@ xcodebuild \
   build
 ```
 
-共享 scheme 的构建后脚本会把最新结果同步到：
+共享 scheme 的构建后脚本会将最新产物同步到：
 
 ```text
 build/Release/hey chat.app
 ```
 
-## 目录结构
+## 目录
 
 ```text
 ChatMac/
 ├── Design/        # Frutiger Aero 主题
-├── Models/        # SwiftData 和 Agent 历史模型
-├── Services/      # API、CLI Agent、存储与上下文压缩
+├── Models/        # SwiftData、Agent 历史、资料与工作流模型
+├── Services/      # API、CLI、检查点、交接、索引、备份服务
 ├── Views/
-│   ├── Agent/     # 项目、会话、终端与多路由 UI
+│   ├── Agent/     # 项目、会话、审查、资料和维护界面
 │   ├── Chat/      # 普通聊天
 │   ├── Media/     # 图片和视频
 │   ├── Models/    # 模型管理
 │   ├── Sidebar/   # 导航、项目与会话列表
 │   └── Skills/    # Skill 管理
 ├── Assets.xcassets/
+Releases/          # 发布 ZIP 与校验值
 Scripts/           # 构建产物同步脚本
-Tests/             # 独立功能探针
-Releases/          # 可下载的预编译应用
 hey chat.xcodeproj/
 ```
 
 ## 当前限制
 
-- 预编译包仅支持 Apple Silicon，不包含 Intel 架构。
-- 当前最低部署版本为 macOS 26.5。
-- 发布包为临时签名，尚未使用 Developer ID 签名或 Apple 公证。
-- Agent 的跨模型接续依赖结构化摘要，不会逐字复制所有历史终端输出。
-- 不同聚合中转站对 Responses API 或 Anthropic Messages 的兼容程度可能不同。
+- 发布 ZIP 仅支持 Apple Silicon，不包含 Intel 架构。
+- 发布包为临时签名版本，未经过 Developer ID 签名和 Apple 公证。
+- 不同中转站对 Responses API、Anthropic Messages 和 CLI 参数的兼容程度不同。
+- Agent 的跨模型继续依赖结构化交接，不会逐字传递所有终端输出。
+- 本地资料库是受控的文件索引与引用能力，不是云端知识库；原文件路径失效时需要在资料面板刷新或重新添加。
 
 ## License
 

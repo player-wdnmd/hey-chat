@@ -16,6 +16,10 @@ struct AgentHistoryStore {
         }
     }
 
+    var storageURL: URL {
+        archiveURL
+    }
+
     func load() throws -> AgentHistoryArchive {
         guard fileManager.fileExists(atPath: archiveURL.path) else {
             return AgentHistoryArchive()
