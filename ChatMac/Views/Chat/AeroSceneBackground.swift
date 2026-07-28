@@ -11,17 +11,17 @@ struct AeroSceneBackground: View {
                     .scaledToFill()
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
-                    .opacity(0.7)
+                    .opacity(0.8)
 
                 Image("AeroEarth")
                     .resizable()
                     .scaledToFit()
                     .frame(width: min(920, geometry.size.width * 0.76))
-                    .opacity(0.2)
+                    .opacity(0.25)
                     .offset(x: geometry.size.width * 0.18)
 
                 LinearGradient(
-                    colors: [Color.white.opacity(0.28), Color.white.opacity(0.48)],
+                    colors: [Color.white.opacity(0.14), Color.white.opacity(0.4)],
                     startPoint: .top,
                     endPoint: .bottom
                 )

@@ -141,19 +141,11 @@ struct VideoWorkspaceView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Videos")
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(Color.white.opacity(0.82))
-
-                Text("视频工具")
-                    .font(.system(size: 25, weight: .heavy))
-                    .foregroundStyle(.white)
-            }
-
-            Spacer()
-
+        AeroWorkspaceHeader(
+            eyebrow: "Media · Videos",
+            title: "视频工具",
+            systemImage: "play.rectangle"
+        ) {
             if isBusy {
                 Button(action: { cancelRequest(showStatus: true) }) {
                     Label("停止", systemImage: "stop.fill")
@@ -162,24 +154,13 @@ struct VideoWorkspaceView: View {
             } else {
                 Label("\(videoRecords.count) 条本机记录", systemImage: "film.stack")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.88))
+                    .foregroundStyle(AeroTheme.secondaryText)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.54))
+                    .clipShape(Capsule())
             }
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 24)
-        .background {
-            LinearGradient(
-                colors: [AeroTheme.sky, AeroTheme.deepSky, AeroTheme.leaf],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.68), lineWidth: 1)
-        }
-        .shadow(color: AeroTheme.deepSky.opacity(0.18), radius: 16, y: 8)
     }
 
     @ViewBuilder
@@ -1205,12 +1186,7 @@ private struct VideoPreviewSheet: View {
 
 private extension View {
     func videoInputSurface() -> some View {
-        background(Color.white.opacity(0.62))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AeroTheme.deepSky.opacity(0.16), lineWidth: 1)
-            }
+        aeroInputSurface(cornerRadius: 10)
     }
 
     func videoModelSurface(isSelected: Bool) -> some View {

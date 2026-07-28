@@ -35,39 +35,16 @@ struct SkillSettingsView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Skills")
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(Color.white.opacity(0.82))
-
-                Text("Skills 管理")
-                    .font(.system(size: 25, weight: .heavy))
-                    .foregroundStyle(.white)
-            }
-
-            Spacer()
-
+        AeroWorkspaceHeader(
+            eyebrow: "Skills",
+            title: "Skills 管理",
+            systemImage: "wand.and.stars"
+        ) {
             Button(action: beginCreatingSkill) {
                 Label("新增 Skill", systemImage: "plus")
             }
             .buttonStyle(AeroPrimaryButtonStyle())
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 24)
-        .background {
-            LinearGradient(
-                colors: [AeroTheme.sky, AeroTheme.deepSky, AeroTheme.leaf],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.68), lineWidth: 1)
-        }
-        .shadow(color: AeroTheme.deepSky.opacity(0.18), radius: 16, y: 8)
     }
 
     @ViewBuilder
@@ -434,12 +411,7 @@ private struct SkillDeleteRequest: Identifiable {
 private struct SkillInputSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Color.white.opacity(0.68))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(AeroTheme.deepSky.opacity(0.2), lineWidth: 1)
-            }
+            .aeroInputSurface(cornerRadius: 10)
     }
 }
 

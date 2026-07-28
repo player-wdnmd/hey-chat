@@ -153,12 +153,12 @@ struct AgentWorkspaceView: View {
     private var header: some View {
         HStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("hey chat")
+                Text("Agent")
                     .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(Color.white.opacity(0.82))
+                    .foregroundStyle(AeroTheme.deepLeaf)
                 Text(viewModel.selectedSessionTitle)
-                    .font(.system(size: 22, weight: .heavy))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 19, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
                     .lineLimit(1)
             }
 
@@ -402,13 +402,16 @@ struct AgentWorkspaceView: View {
             .help("新建 Agent 会话")
         }
         .padding(.horizontal, 28)
-        .padding(.vertical, 19)
+        .padding(.vertical, 13)
         .background {
-            LinearGradient(
-                colors: [AeroTheme.sky, AeroTheme.deepSky, AeroTheme.leaf],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            AeroTheme.glassGradient
+                .opacity(0.82)
+                .overlay(.ultraThinMaterial.opacity(0.52))
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.72))
+                        .frame(height: 1)
+                }
         }
     }
 
@@ -527,8 +530,7 @@ struct AgentWorkspaceView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(Color.white.opacity(0.68))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .aeroInputSurface(cornerRadius: 12)
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(
@@ -4713,14 +4715,38 @@ private struct AeroHeaderButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(AeroTheme.text)
             .padding(.horizontal, 12)
             .frame(minHeight: 34)
-            .background(Color.white.opacity(configuration.isPressed ? 0.28 : 0.17))
+            .background {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(configuration.isPressed ? 0.92 : 0.82),
+                                AeroTheme.aqua.opacity(configuration.isPressed ? 0.52 : 0.34),
+                                AeroTheme.mint.opacity(0.24),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(AeroTheme.glassHighlight.opacity(0.42))
+                            .padding(1)
+                    }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Color.white.opacity(0.34), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.86), lineWidth: 1)
             }
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .inset(by: 1.5)
+                    .stroke(AeroTheme.deepSky.opacity(0.14), lineWidth: 1)
+            }
+            .shadow(color: AeroTheme.deepSky.opacity(configuration.isPressed ? 0.08 : 0.16), radius: 6, y: 3)
     }
 }

@@ -30,7 +30,7 @@ hey chat 不是网页登录器，也不尝试做多用户 SaaS。它面向一台
 
 当前预编译版本：
 
-- [hey chat v1.1 - macOS arm64](Releases/hey-chat-macos-arm64-v1.1.zip)
+- [hey chat v1.2 - macOS arm64](Releases/hey-chat-macos-arm64-v1.2.zip)
 - [SHA-256 校验值](Releases/SHA256SUMS)
 - 架构：Apple Silicon (`arm64`)
 - 最低系统：macOS 26.5

@@ -181,9 +181,7 @@ struct ComposerView: View {
         .foregroundStyle(AeroTheme.text)
         .padding(.horizontal, 12)
         .frame(minWidth: 150, minHeight: 32)
-        .background(Color.white.opacity(0.72))
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(AeroTheme.deepSky.opacity(0.2), lineWidth: 1))
+        .aeroInputSurface(cornerRadius: 16)
     }
 
     private func optionLabel(_ title: String, selected: Bool) -> some View {

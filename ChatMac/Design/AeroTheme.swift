@@ -28,9 +28,25 @@ enum AeroTheme {
 
     static let glassGradient = LinearGradient(
         colors: [
-            Color.white.opacity(0.82),
-            Color(red: 190 / 255, green: 236 / 255, blue: 255 / 255).opacity(0.52),
-            Color(red: 182 / 255, green: 245 / 255, blue: 214 / 255).opacity(0.44),
+            Color.white.opacity(0.9),
+            Color(red: 201 / 255, green: 242 / 255, blue: 255 / 255).opacity(0.64),
+            Color(red: 185 / 255, green: 246 / 255, blue: 216 / 255).opacity(0.54),
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let glassHighlight = LinearGradient(
+        colors: [Color.white.opacity(0.72), Color.white.opacity(0.2), Color.clear],
+        startPoint: .top,
+        endPoint: .center
+    )
+
+    static let inputGradient = LinearGradient(
+        colors: [
+            Color.white.opacity(0.88),
+            Color(red: 218 / 255, green: 246 / 255, blue: 255 / 255).opacity(0.72),
+            Color(red: 214 / 255, green: 250 / 255, blue: 231 / 255).opacity(0.54),
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -84,10 +100,24 @@ struct AeroPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .padding(.horizontal, 16)
             .frame(minHeight: 38)
-            .background(buttonGradient(isPressed: configuration.isPressed))
+            .background {
+                Capsule()
+                    .fill(buttonGradient(isPressed: configuration.isPressed))
+                    .overlay {
+                        Capsule()
+                            .fill(AeroTheme.glassHighlight.opacity(isEnabled ? 0.52 : 0.2))
+                            .padding(1.5)
+                    }
+            }
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Color.white.opacity(0.64), lineWidth: 1))
-            .shadow(color: AeroTheme.deepSky.opacity(isEnabled ? 0.24 : 0), radius: 9, y: 5)
+            .overlay {
+                Capsule()
+                    .inset(by: 2)
+                    .stroke(Color.white.opacity(0.22), lineWidth: 1)
+            }
+            .shadow(color: AeroTheme.deepSky.opacity(isEnabled ? 0.3 : 0), radius: 10, y: 5)
+            .shadow(color: AeroTheme.leaf.opacity(isEnabled ? 0.14 : 0), radius: 7, y: 4)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(isEnabled ? 1 : 0.72)
     }
@@ -97,6 +127,56 @@ struct AeroPrimaryButtonStyle: ButtonStyle {
             return AeroTheme.disabledButtonGradient
         }
         return isPressed ? AeroTheme.pressedButtonGradient : AeroTheme.primaryButtonGradient
+    }
+}
+
+struct AeroWorkspaceHeader<Accessory: View>: View {
+    let eyebrow: String
+    let title: String
+    let systemImage: String
+    private let accessory: Accessory
+
+    init(
+        eyebrow: String,
+        title: String,
+        systemImage: String,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.systemImage = systemImage
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 42, height: 42)
+                .background(AeroTheme.primaryButtonGradient)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(Color.white.opacity(0.8), lineWidth: 1)
+                }
+                .shadow(color: AeroTheme.deepSky.opacity(0.2), radius: 7, y: 3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(eyebrow)
+                    .font(.system(size: 10.5, weight: .heavy))
+                    .foregroundStyle(AeroTheme.deepLeaf)
+                Text(title)
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundStyle(AeroTheme.text)
+            }
+
+            Spacer(minLength: 16)
+            accessory
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .aeroGlass(cornerRadius: 20)
     }
 }
 
@@ -112,17 +192,61 @@ private struct AeroGlassModifier: ViewModifier {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(AeroTheme.glassGradient)
                     }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(AeroTheme.glassHighlight.opacity(0.58))
+                    }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.78), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.9), lineWidth: 1)
             }
-            .shadow(color: Color(red: 31 / 255, green: 126 / 255, blue: 196 / 255).opacity(0.14), radius: 17, y: 8)
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .inset(by: 2)
+                    .stroke(AeroTheme.deepSky.opacity(0.12), lineWidth: 1)
+            }
+            .shadow(color: AeroTheme.deepSky.opacity(0.18), radius: 18, y: 9)
+            .shadow(color: AeroTheme.leaf.opacity(0.1), radius: 12, y: 7)
+    }
+}
+
+private struct AeroInputSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.thinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(AeroTheme.inputGradient)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(AeroTheme.glassHighlight.opacity(0.46))
+                    }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.86), lineWidth: 1)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .inset(by: 1.5)
+                    .stroke(AeroTheme.deepSky.opacity(0.16), lineWidth: 1)
+            }
     }
 }
 
 extension View {
     func aeroGlass(cornerRadius: CGFloat = 22) -> some View {
         modifier(AeroGlassModifier(cornerRadius: cornerRadius))
+    }
+
+    func aeroInputSurface(cornerRadius: CGFloat = 12) -> some View {
+        modifier(AeroInputSurfaceModifier(cornerRadius: cornerRadius))
     }
 }
