@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1200" viewBox="0 0 1920 1200" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8ED8FF"/>
+      <stop offset="0.28" stop-color="#6EC8F8"/>
+      <stop offset="0.55" stop-color="#9ADDF8"/>
+      <stop offset="0.78" stop-color="#C9F0D8"/>
+      <stop offset="1" stop-color="#B8EFC8"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1480 170) rotate(90) scale(320)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="0.25" stop-color="#FFF3B0" stop-opacity="0.7"/>
+      <stop offset="0.55" stop-color="#FFE08A" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFE08A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sunCore" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1480 170) rotate(90) scale(86)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.45" stop-color="#FFF4B8"/>
+      <stop offset="1" stop-color="#FFD76A"/>
+    </radialGradient>
+    <linearGradient id="hillFar" x1="0" y1="700" x2="0" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7FDFB0"/>
+      <stop offset="1" stop-color="#4FBF88"/>
+    </linearGradient>
+    <linearGradient id="hillMid" x1="0" y1="780" x2="0" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5FD49A"/>
+      <stop offset="1" stop-color="#34B876"/>
+    </linearGradient>
+    <linearGradient id="hillNear" x1="0" y1="880" x2="0" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4BCB8A"/>
+      <stop offset="0.55" stop-color="#2FAA6E"/>
+      <stop offset="1" stop-color="#238B58"/>
+    </linearGradient>
+    <linearGradient id="cloudFill" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#EAF7FF" stop-opacity="0.72"/>
+    </linearGradient>
+    <radialGradient id="bubble" cx="0.32" cy="0.28" r="0.8">
+      <stop stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="0.35" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="0.75" stop-color="#B8ECFF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.35"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="cloudSoft" x="-15%" y="-20%" width="130%" height="140%">
+      <feGaussianBlur stdDeviation="3.5"/>
+    </filter>
+    <linearGradient id="glassBar" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1920" height="1200" fill="url(#skyGrad)"/>
+
+  <!-- soft sky blooms -->
+  <circle cx="320" cy="180" r="180" fill="#FFFFFF" opacity="0.18" filter="url(#soft)"/>
+  <circle cx="980" cy="120" r="140" fill="#FFFFFF" opacity="0.12" filter="url(#soft)"/>
+  <circle cx="1600" cy="420" r="200" fill="#FFFFFF" opacity="0.1" filter="url(#soft)"/>
+
+  <!-- sun -->
+  <circle cx="1480" cy="170" r="320" fill="url(#sunGlow)"/>
+  <circle cx="1480" cy="170" r="86" fill="url(#sunCore)"/>
+  <circle cx="1455" cy="150" r="28" fill="#FFFFFF" opacity="0.45"/>
+
+  <!-- fluffy clouds -->
+  <g fill="url(#cloudFill)" filter="url(#cloudSoft)" opacity="0.9">
+    <g transform="translate(180 210)">
+      <ellipse cx="90" cy="46" rx="90" ry="34"/>
+      <ellipse cx="40" cy="52" rx="48" ry="24"/>
+      <ellipse cx="140" cy="50" rx="58" ry="28"/>
+      <ellipse cx="88" cy="30" rx="42" ry="24"/>
+    </g>
+    <g transform="translate(560 150)">
+      <ellipse cx="110" cy="50" rx="110" ry="38"/>
+      <ellipse cx="50" cy="56" rx="56" ry="26"/>
+      <ellipse cx="170" cy="54" rx="64" ry="30"/>
+      <ellipse cx="108" cy="30" rx="48" ry="26"/>
+    </g>
+    <g transform="translate(1040 230)">
+      <ellipse cx="96" cy="44" rx="96" ry="32"/>
+      <ellipse cx="42" cy="50" rx="48" ry="22"/>
+      <ellipse cx="150" cy="48" rx="54" ry="26"/>
+      <ellipse cx="98" cy="28" rx="40" ry="22"/>
+    </g>
+    <g transform="translate(1560 280)">
+      <ellipse cx="80" cy="40" rx="80" ry="28"/>
+      <ellipse cx="34" cy="46" rx="40" ry="20"/>
+      <ellipse cx="124" cy="44" rx="48" ry="22"/>
+    </g>
+  </g>
+
+  <!-- distant hills -->
+  <path d="M0 780 C180 720 320 700 500 730 C680 760 820 700 1020 720 C1220 740 1400 690 1600 720 C1760 744 1860 760 1920 770 L1920 1200 L0 1200 Z" fill="url(#hillFar)" opacity="0.7"/>
+  <path d="M0 860 C220 800 420 780 620 820 C820 860 980 790 1200 820 C1420 850 1600 800 1780 830 C1860 842 1900 850 1920 856 L1920 1200 L0 1200 Z" fill="#4FCB8F" opacity="0.55"/>
+
+  <!-- mid hills -->
+  <path d="M0 920 C240 860 460 850 700 900 C940 950 1120 870 1360 910 C1580 946 1740 900 1920 930 L1920 1200 L0 1200 Z" fill="url(#hillMid)"/>
+
+  <!-- near grass -->
+  <path d="M0 1000 C200 950 380 960 560 1000 C780 1050 980 960 1220 1000 C1480 1045 1680 980 1920 1010 L1920 1200 L0 1200 Z" fill="url(#hillNear)"/>
+
+  <!-- grass texture strokes -->
+  <g opacity="0.22" stroke="#E8FFE8" stroke-width="2" stroke-linecap="round">
+    <path d="M80 1080c6-18 4-28 0-36"/>
+    <path d="M120 1100c8-20 6-32 0-40"/>
+    <path d="M180 1070c7-16 5-26 0-34"/>
+    <path d="M260 1110c8-22 5-34-1-42"/>
+    <path d="M340 1088c7-18 4-28-1-36"/>
+    <path d="M520 1095c8-20 5-30 0-38"/>
+    <path d="M640 1115c7-18 4-30-1-38"/>
+    <path d="M780 1080c8-20 6-32 0-40"/>
+    <path d="M920 1108c7-18 4-28 0-36"/>
+    <path d="M1080 1090c8-20 5-30-1-38"/>
+    <path d="M1240 1112c7-18 4-30 0-38"/>
+    <path d="M1400 1086c8-20 5-32 0-40"/>
+    <path d="M1580 1104c7-18 4-28-1-36"/>
+    <path d="M1720 1092c8-20 6-30 0-38"/>
+    <path d="M1840 1110c7-16 4-28 0-34"/>
+  </g>
+
+  <!-- flower dots -->
+  <g opacity="0.55">
+    <circle cx="220" cy="1060" r="4" fill="#FFF6A8"/>
+    <circle cx="410" cy="1090" r="3.5" fill="#FFD1E8"/>
+    <circle cx="690" cy="1050" r="4" fill="#FFF6A8"/>
+    <circle cx="980" cy="1085" r="3.5" fill="#E8F8FF"/>
+    <circle cx="1290" cy="1065" r="4" fill="#FFD1E8"/>
+    <circle cx="1510" cy="1095" r="3.5" fill="#FFF6A8"/>
+    <circle cx="1750" cy="1070" r="4" fill="#E8F8FF"/>
+  </g>
+
+  <!-- glossy bubbles / orbs -->
+  <g>
+    <circle cx="260" cy="420" r="54" fill="url(#bubble)" stroke="#FFFFFF" stroke-opacity="0.5"/>
+    <circle cx="240" cy="400" r="14" fill="#FFFFFF" opacity="0.55"/>
+    <circle cx="1680" cy="520" r="70" fill="url(#bubble)" stroke="#FFFFFF" stroke-opacity="0.45"/>
+    <circle cx="1654" cy="494" r="16" fill="#FFFFFF" opacity="0.5"/>
+    <circle cx="420" cy="620" r="28" fill="url(#bubble)" stroke="#FFFFFF" stroke-opacity="0.4"/>
+    <circle cx="410" cy="610" r="7" fill="#FFFFFF" opacity="0.5"/>
+    <circle cx="1320" cy="390" r="36" fill="url(#bubble)" stroke="#FFFFFF" stroke-opacity="0.42"/>
+    <circle cx="1308" cy="378" r="9" fill="#FFFFFF" opacity="0.5"/>
+    <circle cx="900" cy="280" r="22" fill="url(#bubble)" stroke="#FFFFFF" stroke-opacity="0.4"/>
+    <circle cx="892" cy="272" r="5" fill="#FFFFFF" opacity="0.55"/>
+  </g>
+
+  <!-- top glass sheen strip -->
+  <rect width="1920" height="180" fill="url(#glassBar)"/>
+</svg>

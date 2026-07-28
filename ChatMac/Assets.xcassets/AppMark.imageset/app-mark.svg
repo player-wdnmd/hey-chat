@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7DD3FC"/>
+      <stop offset="0.45" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="14" y1="8" x2="40" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#sky)"/>
+  <path d="M18 22.5C18 18.9101 20.9101 16 24.5 16H39.5C43.0899 16 46 18.9101 46 22.5V32.5C46 36.0899 43.0899 39 39.5 39H31.2L24.35 45.1C23.02 46.28 20.9 45.34 20.9 43.55V39.4C19.05 38.35 18 36.55 18 34.5V22.5Z" fill="white" fill-opacity="0.92"/>
+  <ellipse cx="28" cy="21.5" rx="12" ry="7" fill="url(#shine)"/>
+  <circle cx="27" cy="27.5" r="2.1" fill="#0EA5E9"/>
+  <circle cx="32.5" cy="27.5" r="2.1" fill="#10B981"/>
+  <circle cx="38" cy="27.5" r="2.1" fill="#38BDF8"/>
+</svg>

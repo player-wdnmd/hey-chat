@@ -7,12 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		69E4137E301347E7005494BC /* ChatMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChatMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		69E4137E301347E7005494BC /* hey chat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "hey chat.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		69E41380301347E7005494BC /* ChatMac */ = {
+		69E41380301347E7005494BC /* hey chat */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			name = "hey chat";
 			path = ChatMac;
 			sourceTree = "<group>";
 		};
@@ -32,7 +33,7 @@
 		69E41375301347E7005494BC = {
 			isa = PBXGroup;
 			children = (
-				69E41380301347E7005494BC /* ChatMac */,
+				69E41380301347E7005494BC /* hey chat */,
 				69E4137F301347E7005494BC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +41,7 @@
 		69E4137F301347E7005494BC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				69E4137E301347E7005494BC /* ChatMac.app */,
+				69E4137E301347E7005494BC /* hey chat.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +49,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		69E4137D301347E7005494BC /* ChatMac */ = {
+		69E4137D301347E7005494BC /* hey chat */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 69E4138B301347E8005494BC /* Build configuration list for PBXNativeTarget "ChatMac" */;
+			buildConfigurationList = 69E4138B301347E8005494BC /* Build configuration list for PBXNativeTarget "hey chat" */;
 			buildPhases = (
 				69E4137A301347E7005494BC /* Sources */,
 				69E4137B301347E7005494BC /* Frameworks */,
@@ -61,13 +62,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				69E41380301347E7005494BC /* ChatMac */,
+				69E41380301347E7005494BC /* hey chat */,
 			);
-			name = ChatMac;
+			name = "hey chat";
 			packageProductDependencies = (
 			);
-			productName = ChatMac;
-			productReference = 69E4137E301347E7005494BC /* ChatMac.app */;
+			productName = "hey chat";
+			productReference = 69E4137E301347E7005494BC /* hey chat.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +86,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 69E41379301347E7005494BC /* Build configuration list for PBXProject "ChatMac" */;
+			buildConfigurationList = 69E41379301347E7005494BC /* Build configuration list for PBXProject "hey chat" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +100,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				69E4137D301347E7005494BC /* ChatMac */,
+				69E4137D301347E7005494BC /* hey chat */,
 			);
 		};
 /* End PBXProject section */
@@ -251,10 +252,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "hey chat";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -281,10 +285,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "hey chat";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -306,7 +313,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		69E41379301347E7005494BC /* Build configuration list for PBXProject "ChatMac" */ = {
+		69E41379301347E7005494BC /* Build configuration list for PBXProject "hey chat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				69E41389301347E8005494BC /* Debug */,
@@ -315,7 +322,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		69E4138B301347E8005494BC /* Build configuration list for PBXNativeTarget "ChatMac" */ = {
+		69E4138B301347E8005494BC /* Build configuration list for PBXNativeTarget "hey chat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				69E4138C301347E8005494BC /* Debug */,

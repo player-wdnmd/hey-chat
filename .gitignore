@@ -1,0 +1,10 @@
+.DS_Store
+DerivedData/
+build/
+.build/
+.codex-artifacts/
+.codex-tmp/
+dist/
+hi.txt
+*.xcuserstate
+**/xcuserdata/
