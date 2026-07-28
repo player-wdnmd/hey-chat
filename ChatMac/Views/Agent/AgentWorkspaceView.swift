@@ -43,13 +43,6 @@ struct AgentWorkspaceView: View {
         selectedTarget.map { viewModel.reasoningEffort(for: $0) } ?? .automatic
     }
 
-    private var shouldDeferReturnToTextInput: Bool {
-        guard let textInputClient = NSApp.keyWindow?.firstResponder as? NSTextInputClient else {
-            return true
-        }
-        return textInputClient.hasMarkedText()
-    }
-
     private var transcriptTurns: [AgentTranscriptTurn] {
         AgentTranscriptTurn.grouping(viewModel.entries)
     }
@@ -510,24 +503,20 @@ struct AgentWorkspaceView: View {
                         attachmentStrip
                     }
 
-                    TextEditor(text: $viewModel.draft)
-                        .font(.system(size: 14.5))
-                        .foregroundStyle(AeroTheme.text)
-                        .lineSpacing(5)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 58, maxHeight: 92)
-                        .onKeyPress(keys: [.return], phases: [.down]) { keyPress in
-                            if keyPress.modifiers.contains(.shift) || shouldDeferReturnToTextInput {
-                                return .ignored
-                            }
+                    MultilinePasteTextEditor(
+                        text: $viewModel.draft,
+                        onMultilinePaste: viewModel.addPastedTextAttachment,
+                        onSubmit: {
                             guard selectedTarget != nil,
                                   !viewModel.isRunning,
                                   hasSendableContent else {
-                                return .handled
+                                return true
                             }
                             sendDraft()
-                            return .handled
+                            return true
                         }
+                    )
+                        .frame(minHeight: 58, maxHeight: 92)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .aeroInputSurface(cornerRadius: 12)
@@ -2849,6 +2838,30 @@ final class AgentWorkspaceViewModel: ObservableObject {
         }
     }
 
+    func addPastedTextAttachment(_ text: String) {
+        guard !isRunning,
+              text.rangeOfCharacter(from: .newlines) != nil else { return }
+        guard draftAttachments.count < 10 else {
+            statusText = "最多只能添加 10 个附件"
+            return
+        }
+
+        let data = Data(text.utf8)
+        guard data.count <= 100_000_000 else {
+            statusText = "粘贴内容超过 100 MB，无法作为附件添加"
+            return
+        }
+
+        do {
+            let attachmentURL = try Self.storePastedTextAttachment(data)
+            let attachment = AgentAttachmentRecord(url: attachmentURL)
+            draftAttachments.append(attachment)
+            statusText = "已将多行粘贴内容保存为 \(attachment.displayName)"
+        } catch {
+            statusText = "无法创建粘贴文本附件：\(error.localizedDescription)"
+        }
+    }
+
     func removeAttachment(_ attachmentID: UUID) {
         guard !isRunning else { return }
         draftAttachments.removeAll { $0.id == attachmentID }
@@ -3647,6 +3660,27 @@ final class AgentWorkspaceViewModel: ObservableObject {
             try? FileManager.default.removeItem(at: stagingURL)
             throw error
         }
+    }
+
+    nonisolated private static func storePastedTextAttachment(_ data: Data) throws -> URL {
+        let applicationSupportURL = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let directoryURL = applicationSupportURL
+            .appendingPathComponent("ChatMac", isDirectory: true)
+            .appendingPathComponent("PastedAttachments", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true
+        )
+
+        let fileName = "pasted-text-\(UUID().uuidString.prefix(8)).txt"
+        let fileURL = directoryURL.appendingPathComponent(fileName, isDirectory: false)
+        try data.write(to: fileURL, options: .atomic)
+        return fileURL
     }
 
     private var currentSession: AgentSessionRecord? {
