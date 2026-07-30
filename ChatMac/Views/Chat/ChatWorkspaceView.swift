@@ -5,6 +5,7 @@ struct ChatWorkspaceView: View {
     let models: [AIModelConfiguration]
     let skills: [Skill]
     let isGenerating: Bool
+    let streamingContent: String?
     let statusText: String?
     let onSelectModel: (UUID?) -> Void
     let onSelectSkill: (UUID?) -> Void
@@ -31,7 +32,10 @@ struct ChatWorkspaceView: View {
                                     .id(message.id)
                             }
 
-                            if isGenerating {
+                            if let streamingContent, !streamingContent.isEmpty {
+                                StreamingMessageBubble(content: streamingContent)
+                                    .id("assistant-streaming")
+                            } else if isGenerating {
                                 generatingIndicator
                                     .id("assistant-generating")
                             }
@@ -53,6 +57,10 @@ struct ChatWorkspaceView: View {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("assistant-generating", anchor: .bottom)
                     }
+                }
+                .onChange(of: streamingContent) { _, streamingContent in
+                    guard streamingContent?.isEmpty == false else { return }
+                    proxy.scrollTo("assistant-streaming", anchor: .bottom)
                 }
             }
 

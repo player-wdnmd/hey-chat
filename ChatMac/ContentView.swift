@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var requestTasks: [UUID: Task<Void, Never>] = [:]
     @State private var requestIDs: [UUID: UUID] = [:]
     @State private var conversationStatus: [UUID: String] = [:]
+    @State private var streamingResponses: [UUID: String] = [:]
     @StateObject private var videoGeneration = VideoGenerationCoordinator()
     @StateObject private var agentWorkspace = AgentWorkspaceViewModel()
 
@@ -74,6 +75,7 @@ struct ContentView: View {
                             models: enabledChatModels,
                             skills: enabledSkills,
                             isGenerating: requestTasks[conversation.id] != nil,
+                            streamingContent: streamingResponses[conversation.id],
                             statusText: conversationStatus[conversation.id],
                             onSelectModel: { updateSelectedModel($0, in: conversation) },
                             onSelectSkill: { updateSelectedSkill($0, in: conversation) },
@@ -313,23 +315,39 @@ struct ContentView: View {
             }
 
             do {
-                let result = try await chatService.complete(
+                let events = try await chatService.stream(
                     messages: requestMessages,
                     target: target
                 )
+                var streamedContent = ""
+                var completion: ChatCompletionResult?
+                for try await event in events {
+                    guard !Task.isCancelled, requestIDs[conversationID] == requestID else {
+                        return
+                    }
+                    switch event {
+                    case .delta(let content):
+                        streamedContent.append(content)
+                        streamingResponses[conversationID] = streamedContent
+                    case .completed(let result):
+                        completion = result
+                    }
+                }
+
                 guard !Task.isCancelled, requestIDs[conversationID] == requestID,
+                      let completion,
                       let persistedConversation = conversations.first(where: { $0.id == conversationID }) else {
                     return
                 }
 
                 appendAssistantMessage(
-                    content: result.content,
+                    content: completion.content,
                     errorText: nil,
                     target: target,
                     startedAt: startedAt,
-                    promptTokens: result.promptTokens,
-                    completionTokens: result.completionTokens,
-                    totalTokens: result.totalTokens,
+                    promptTokens: completion.promptTokens,
+                    completionTokens: completion.completionTokens,
+                    totalTokens: completion.totalTokens,
                     to: persistedConversation
                 )
             } catch is CancellationError {
@@ -342,16 +360,32 @@ struct ContentView: View {
 
                 let errorText = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
                 let readableError = errorText.isEmpty ? "模型请求失败。" : errorText
-                appendAssistantMessage(
-                    content: readableError,
-                    errorText: readableError,
-                    target: target,
-                    startedAt: startedAt,
-                    promptTokens: nil,
-                    completionTokens: nil,
-                    totalTokens: nil,
-                    to: persistedConversation
-                )
+                let partialContent = streamingResponses[conversationID]?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if partialContent.isEmpty {
+                    appendAssistantMessage(
+                        content: readableError,
+                        errorText: readableError,
+                        target: target,
+                        startedAt: startedAt,
+                        promptTokens: nil,
+                        completionTokens: nil,
+                        totalTokens: nil,
+                        to: persistedConversation
+                    )
+                } else {
+                    appendAssistantMessage(
+                        content: partialContent,
+                        errorText: nil,
+                        target: target,
+                        startedAt: startedAt,
+                        promptTokens: nil,
+                        completionTokens: nil,
+                        totalTokens: nil,
+                        to: persistedConversation
+                    )
+                    conversationStatus[conversationID] = "流式输出中断：\(readableError)"
+                }
             }
         }
         requestTasks[conversationID] = task
@@ -422,6 +456,7 @@ struct ContentView: View {
         requestTasks[conversationID]?.cancel()
         requestTasks[conversationID] = nil
         requestIDs[conversationID] = nil
+        streamingResponses[conversationID] = nil
         if showStatus {
             conversationStatus[conversationID] = "已停止生成。"
         }
@@ -431,6 +466,7 @@ struct ContentView: View {
         guard requestIDs[conversationID] == requestID else { return }
         requestTasks[conversationID] = nil
         requestIDs[conversationID] = nil
+        streamingResponses[conversationID] = nil
     }
 
     private func cancelAllRequests() {
@@ -439,6 +475,7 @@ struct ContentView: View {
         }
         requestTasks.removeAll()
         requestIDs.removeAll()
+        streamingResponses.removeAll()
     }
 
     @discardableResult

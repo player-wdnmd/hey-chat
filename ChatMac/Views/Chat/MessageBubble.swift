@@ -80,3 +80,30 @@ struct MessageBubble: View {
         return String(format: "%.1f s", Double(milliseconds) / 1_000)
     }
 }
+
+struct StreamingMessageBubble: View {
+    let content: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 7) {
+                    Text("Chat")
+                        .font(.system(size: 11, weight: .bold))
+                    ProgressView()
+                        .controlSize(.mini)
+                }
+                .foregroundStyle(AeroTheme.faintText)
+
+                Text(content)
+                    .font(.system(size: 14.5))
+                    .foregroundStyle(AeroTheme.text)
+                    .lineSpacing(6)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: 840, alignment: .leading)
+            Spacer(minLength: 40)
+        }
+    }
+}
